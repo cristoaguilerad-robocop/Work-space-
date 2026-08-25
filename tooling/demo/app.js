@@ -132,6 +132,8 @@
   const bindings = () => state.bindings[state.caseId];
   const body = () => current().derived.bodies[0];
   const moduleOf = () => current().module;
+  /** Un cable vive en Estatica pero grafica otras cosas. */
+  const diagramsOf = () => (body().kind === 'cable' ? 'cable' : current().module);
 
   // -------------------------------------------------------------- utilidades
 
@@ -338,9 +340,32 @@
       root.append(g);
     }
 
-    root.append(svg('line', {
-      x1: px(0), y1: BEAM_Y, x2: px(L), y2: BEAM_Y, class: `beam ${module}`,
-    }));
+    // Un cable no es una recta: su curva es el resultado del problema. La
+    // escala vertical se ajusta a la flecha para que se vea la forma y no una
+    // linea casi plana.
+    if (b.shape) {
+      const samples = [];
+      for (let i = 0; i <= 80; i += 1) {
+        const sx = (i / 80) * L;
+        const sy = evaluate(b.shape.ast, sx, bd);
+        if (Number.isFinite(sy)) samples.push({ x: sx, y: sy });
+      }
+      if (samples.length > 1) {
+        const lo = Math.min(...samples.map((s) => s.y));
+        const hi = Math.max(...samples.map((s) => s.y));
+        const vScale = Math.min(74 / Math.max(hi - lo, 1e-9), (CW - 2 * MARGIN) / L);
+        root.append(svg('polyline', {
+          class: 'cable',
+          points: samples
+            .map((s) => `${px(s.x).toFixed(1)},${(BEAM_Y - (s.y - hi) * vScale).toFixed(1)}`)
+            .join(' '),
+        }));
+      }
+    } else {
+      root.append(svg('line', {
+        x1: px(0), y1: BEAM_Y, x2: px(L), y2: BEAM_Y, class: `beam ${module}`,
+      }));
+    }
 
     for (const support of b.supports ?? []) {
       const at = px(val(support.at, bd));
@@ -548,6 +573,11 @@
       ['Q', 'Flujo de calor Q(x)', 'W', 'var(--shear)'],
     ],
     em: [],
+    cable: [
+      ['y', 'Curva del cable y(x)', 'm', 'var(--defl)'],
+      ['V', 'Componente vertical V(x)', 'N', 'var(--shear)'],
+      ['T', 'Tension T(x)', 'N', 'var(--moment)'],
+    ],
   };
 
   const SCALAR_LABELS = {
@@ -557,6 +587,10 @@
     Q_out: 'Calor saliente',
     total: 'Carga / corriente total',
     centroid: 'Centroide de la fuente',
+    H: 'Tension horizontal H',
+    T_A: 'Tension en A',
+    T_B: 'Tension en B',
+    length: 'Longitud del cable',
   };
 
   function describeField(field, model) {
@@ -704,7 +738,7 @@
       .map((l) => val(l.start, bd))
       .filter(Number.isFinite);
 
-    for (const [key, , , color] of DIAGRAMS[c.module] ?? []) {
+    for (const [key, , , color] of DIAGRAMS[diagramsOf()] ?? []) {
       const slot = document.querySelector(`[data-plot="${key}"]`);
       if (slot && b.functions[key]) slot.replaceChildren(drawPlot(b.functions[key], color, L, breaks));
     }
@@ -803,7 +837,7 @@
           el('span', { class: 'plate-code' }, 'ETAPA 3 / MAPA'))
       : el('section', { class: 'plate' },
           el('h2', {}, 'Diagramas'),
-          ...(DIAGRAMS[c.module] ?? []).filter(([key]) => b.functions[key])
+          ...(DIAGRAMS[diagramsOf()] ?? []).filter(([key]) => b.functions[key])
             .map(([key, title, units, color]) => el('figure', { class: 'plot' },
               el('figcaption', {}, el('span', {}, title), el('span', {}, units)),
               el('div', { 'data-plot': key }, drawPlot(b.functions[key], color, L, breaks)))),

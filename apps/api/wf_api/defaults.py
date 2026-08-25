@@ -15,6 +15,9 @@ SUGGESTIONS: dict[str, tuple[float, str, str]] = {
     # consistentes entre si importa: con una seccion y una inercia de
     # cuerpos distintos, los numeros de la etapa 3 no describen nada.
     "L": (4.0, "m", "Longitud del cuerpo"),
+    "f": (0.4, "m", "Flecha del cable"),
+    "hB": (0.8, "m", "Desnivel del apoyo derecho"),
+    "H0": (5000.0, "N", "Tension horizontal impuesta"),
     "w0": (1000.0, "N/m", "Intensidad de carga distribuida"),
     "w1": (1000.0, "N/m", "Intensidad de carga distribuida"),
     "P": (5000.0, "N", "Carga puntual"),

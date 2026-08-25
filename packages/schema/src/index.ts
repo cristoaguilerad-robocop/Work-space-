@@ -60,6 +60,8 @@ export interface DerivedSupport {
   id: string;
   type: 'pin' | 'roller' | 'fixed';
   at: Packaged;
+  /** Cota del apoyo. Solo los cables la usan. */
+  elevation?: Packaged;
 }
 
 export interface DerivedBoundary {
@@ -104,6 +106,8 @@ export interface DerivedBody {
   /** Electro. */
   probes?: DerivedProbe[];
   field_setups?: Record<string, FieldSetup>;
+  /** Cables: la curva y(x). En un cable la forma es el resultado, no el dibujo. */
+  shape?: Packaged;
   /** Electro: nombres de las coordenadas del punto de observacion. */
   observer?: string[];
   module?: 'statics' | 'thermo' | 'em';

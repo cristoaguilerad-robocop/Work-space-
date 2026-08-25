@@ -18,7 +18,8 @@ from wf_em import ModelError as EmError
 from wf_em import PX, PY, PZ, solve_line
 from wf_thermo import ModelError as ThermoError
 from wf_thermo import solve_bar
-from wf_statics import ModelError, solve_beam
+from wf_statics import ModelError, solve_beam, solve_cable
+from wf_statics.cable import ModelError as CableError
 
 from .defaults import suggest
 
@@ -100,6 +101,41 @@ def _load_descriptors(body, *, emit_ast: bool = False) -> list[dict]:
         out.append(descriptor)
 
     return out
+
+
+def derive_cable_body(body, supports, *, emit_ast: bool = False) -> dict:
+    """Un cable: misma densidad canonica, otra ley constitutiva.
+
+    Se devuelve ``shape`` aparte de las funciones para que el canvas dibuje la
+    curva real en vez de una recta: en un cable la forma *es* el resultado.
+    """
+    x = sp.Symbol(body.domain.parameter)
+    sol = solve_cable(body, supports)
+    return {
+        "body_id": body.id,
+        "name": body.name or body.id,
+        "module": "statics",
+        "kind": "cable",
+        "mode": "cable",
+        "parameter": body.domain.parameter,
+        "domain_end": sp.latex(sp.sympify(body.domain.end)),
+        "length": _packaged(sp.sympify(body.domain.end), x, emit_ast=emit_ast),
+        "shape": _packaged(sol.functions["y"], x, emit_ast=emit_ast),
+        "loads": _load_descriptors(body, emit_ast=emit_ast),
+        "supports": [
+            {"id": s.id, "type": s.type,
+             "at": _packaged(sp.sympify(s.at), x, emit_ast=emit_ast),
+             "elevation": _packaged(sp.sympify(s.elevation), x, emit_ast=emit_ast)}
+            for s in supports
+        ],
+        "reactions": {},
+        "functions": {n: _packaged(e, x, emit_ast=emit_ast) for n, e in sol.functions.items()},
+        "scalars": {n: _packaged(e, x, emit_ast=emit_ast) for n, e in sol.scalars.items()},
+        "residuals": {},
+        "equations": sol.equations.to_list(),
+        "steps": sol.trace.to_list(),
+        "notes": sol.notes,
+    }
 
 
 def derive_body(body, supports, *, emit_ast: bool = False) -> dict:
@@ -235,10 +271,14 @@ def derive_payload(model_json: str, *, emit_ast: bool = False) -> dict:
                     body, model.boundaries_for(body.id), emit_ast=emit_ast))
             elif model.module == "em":
                 bodies.append(derive_em_body(body, model.probes, emit_ast=emit_ast))
+            elif body.analysis.dof == "cable":
+                bodies.append(derive_cable_body(
+                    body, model.supports_for(body.id), emit_ast=emit_ast))
             else:
                 bodies.append(derive_body(
                     body, model.supports_for(body.id), emit_ast=emit_ast))
-        except (ModelError, ThermoError, EmError, ValueError, NotImplementedError) as exc:
+        except (ModelError, CableError, ThermoError, EmError,
+                ValueError, NotImplementedError) as exc:
             errors.append({"body_id": body.id, "message": str(exc)})
 
     # Las constantes fisicas no aparecen en el modelo: las introduce el motor al

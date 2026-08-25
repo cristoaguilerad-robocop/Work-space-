@@ -165,6 +165,51 @@ export function Stage1({ model, module, derivedBody, bindings, onChange }: Props
             </label>
             {module === 'statics' && (
               <label>
+                Tipo de cuerpo
+                <select
+                  value={body.analysis.dof === 'cable' ? 'cable' : 'beam'}
+                  onChange={(e) => {
+                    const isCable = e.target.value === 'cable';
+                    onChange((m) => ({
+                      ...m,
+                      bodies: m.bodies.map((b, i) => (i !== 0 ? b : {
+                        ...b,
+                        type: isCable ? 'cable' : 'beam',
+                        analysis: { ...b.analysis, dof: isCable ? 'cable' : '1d_beam',
+                                    mode: isCable ? 'rigid' : b.analysis.mode },
+                        // Un cable necesita saber como se cierra: la flecha o H.
+                        cable: isCable
+                          ? (b.cable ?? { mode: 'sag', sag: 'f', at: null, H: null })
+                          : null,
+                      })),
+                      // Un cable se sostiene entre dos articulaciones.
+                      supports: isCable
+                        ? m.supports.map((sup) => ({ ...sup, type: 'pin' as const }))
+                        : m.supports,
+                    }));
+                  }}
+                >
+                  <option value="beam">Viga — con rigidez a flexion</option>
+                  <option value="cable">Cable — flexible, forma libre</option>
+                </select>
+              </label>
+            )}
+            {module === 'statics' && body.analysis.dof === 'cable' && body.cable && (
+              <label>
+                Flecha
+                <input
+                  value={body.cable.sag ?? ''}
+                  onChange={(e) => onChange((m) => ({
+                    ...m,
+                    bodies: m.bodies.map((b, i) => (i !== 0 || !b.cable ? b : {
+                      ...b, cable: { ...b.cable, sag: e.target.value },
+                    })),
+                  }))}
+                />
+              </label>
+            )}
+            {module === 'statics' && body.analysis.dof !== 'cable' && (
+              <label>
                 Modo de analisis
                 <select
                   value={body.analysis.mode}

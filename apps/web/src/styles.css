@@ -390,3 +390,6 @@ kbd {
 .canvas .scalar-pt.pos .glyph, .canvas .scalar-pt.pos text { fill: var(--c-slope); }
 .canvas .scalar-pt.neg .glyph, .canvas .scalar-pt.neg text { fill: var(--c-moment); }
 .canvas .scalar-pt .glyph { font-size: 14px; font-weight: 700; }
+
+/* El cable se dibuja como la curva que resuelve el problema, no como recta. */
+.canvas .cable { fill: none; stroke: var(--c-defl); stroke-width: 3.5; stroke-linecap: round; }

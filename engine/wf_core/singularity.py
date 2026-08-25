@@ -216,3 +216,61 @@ def evaluate_at(expr: sp.Expr, x: sp.Symbol, at: sp.Expr) -> sp.Expr:
     out = sp.sympify(expr).replace(lambda n: isinstance(n, SF), _sf)
     out = out.replace(lambda n: isinstance(n, sp.Heaviside), _hv)
     return sp.expand(out.subs(x, at))
+
+
+def interior_form(expr: sp.Expr, x: sp.Symbol, start: sp.Expr, end: sp.Expr) -> sp.Expr | None:
+    """Forma polinomica de ``expr`` valida en el interior de ``(start, end)``.
+
+    Muchas integrales -- la longitud de un cable, por ejemplo -- no se pueden
+    calcular contra funciones de singularidad, pero si contra el polinomio
+    equivalente dentro del dominio. Un termino con origen en el extremo
+    izquierdo esta siempre activo y uno con origen en el derecho nunca lo esta.
+
+    Devuelve ``None`` si hay origenes **interiores**: ahi la expresion es
+    genuinamente partida y no existe una sola forma polinomica que la
+    represente. El llamador decide que hacer con eso.
+    """
+    expr = sp.sympify(expr)
+    start, end = sp.sympify(start), sp.sympify(end)
+
+    for node in expr.atoms(SF):
+        origin = node.args[1]
+        if _positive_sign(origin - start) in (0, -1):
+            continue
+        if _positive_sign(origin - end) in (0, 1):
+            continue
+        return None
+
+    def _sf(node: sp.Expr) -> sp.Expr:
+        _, origin, order = node.args
+        if _positive_sign(origin - end) in (0, 1):
+            return sp.S.Zero
+        if order.is_number and order < 0:
+            return sp.S.Zero
+        return (x - origin) ** order
+
+    return sp.expand(expr.replace(lambda n: isinstance(n, SF), _sf))
+
+
+def integrate_positive(expr: sp.Expr, x: sp.Symbol, start: sp.Expr, end: sp.Expr):
+    """Integra declarando positivos los simbolos de geometria.
+
+    Sin esa suposicion SymPy no resuelve integrales como ``sqrt(1 + y'^2)``:
+    tiene que cubrirse de longitudes negativas que en un modelo fisico no
+    existen. Devuelve ``None`` si aun asi no sale.
+    """
+    free = {s for s in expr.free_symbols if s != x}
+    forward = {s: sp.Dummy(s.name, positive=True) for s in free}
+    backward = {d: s for s, d in forward.items()}
+
+    try:
+        result = sp.integrate(
+            expr.subs(forward), (x, sp.sympify(start).subs(forward), sp.sympify(end).subs(forward))
+        )
+    except Exception:  # pragma: no cover - SymPy falla de muchas formas
+        return None
+
+    result = resolve_piecewise(result)
+    if result.has(sp.Integral) or result.has(sp.Piecewise):
+        return None
+    return sp.simplify(result.subs(backward))

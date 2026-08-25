@@ -13,8 +13,11 @@
           "type": "string"
         },
         "dof": {
-          "const": "1d_beam",
           "default": "1d_beam",
+          "enum": [
+            "1d_beam",
+            "cable"
+          ],
           "title": "Dof",
           "type": "string"
         }
@@ -139,10 +142,22 @@
         },
         "analysis": {
           "$ref": "#/$defs/Analysis"
+        },
+        "cable": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CableSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
         "analysis",
+        "cable",
         "constitutive",
         "domain",
         "fields",
@@ -222,6 +237,65 @@
       ],
       "title": "BoundaryCondition",
       "type": "object"
+    },
+    "CableSpec": {
+      "additionalProperties": false,
+      "description": "Como se cierra el problema de un cable.\n\nUn cable no tiene rigidez a flexion: su forma la fija la tension horizontal\n``H``, que es constante a lo largo del cable pero desconocida. Hace falta\nun dato mas para determinarla, y hay dos formas usuales de darlo: la flecha\nen un punto (lo habitual en un problema de curso) o directamente ``H``.",
+      "properties": {
+        "mode": {
+          "default": "sag",
+          "enum": [
+            "sag",
+            "tension"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "sag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "f",
+          "title": "Sag"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "H": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H"
+        }
+      },
+      "title": "CableSpec",
+      "type": "object",
+      "required": [
+        "H",
+        "at",
+        "mode",
+        "sag"
+      ]
     },
     "Constitutive": {
       "additionalProperties": false,
@@ -1057,6 +1131,11 @@
           "title": "Type",
           "type": "string"
         },
+        "elevation": {
+          "default": "0",
+          "title": "Elevation",
+          "type": "string"
+        },
         "label": {
           "default": "",
           "title": "Label",
@@ -1066,6 +1145,7 @@
       "required": [
         "at",
         "body_id",
+        "elevation",
         "id",
         "label",
         "type"

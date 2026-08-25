@@ -4,6 +4,7 @@ import { value } from '../lib/evaluate';
 import { FieldMap } from './FieldMap';
 import { Katex } from './Katex';
 import { Plot } from './Plot';
+import type { Module } from '../lib/elements';
 import { SandboxCanvas } from './SandboxCanvas';
 
 interface Props {
@@ -31,6 +32,11 @@ const DIAGRAMS: Record<string, Diagram[]> = {
     { key: 'Q', title: 'Flujo de calor Q(x)', units: 'W', color: 'var(--c-shear)' },
   ],
   em: [],
+  cable: [
+    { key: 'y', title: 'Curva del cable y(x)', units: 'm', color: 'var(--c-defl)' },
+    { key: 'V', title: 'Componente vertical V(x)', units: 'N', color: 'var(--c-shear)' },
+    { key: 'T', title: 'Tension T(x)', units: 'N', color: 'var(--c-moment)' },
+  ],
 };
 
 /** Nombres legibles para los escalares que devuelve el motor. */
@@ -41,6 +47,10 @@ const SCALAR_LABELS: Record<string, string> = {
   Q_out: 'Calor saliente',
   total: 'Carga / corriente total',
   centroid: 'Centroide de la fuente',
+  H: 'Tension horizontal H',
+  T_A: 'Tension en A',
+  T_B: 'Tension en B',
+  length: 'Longitud del cable',
 };
 
 function format(v: number): string {
@@ -57,7 +67,8 @@ function format(v: number): string {
  * El modelo de la etapa 1 y las ecuaciones de la etapa 2 quedan a la vista.
  */
 export function Stage3({ body, doc, bindings, symbols, onBinding }: Props) {
-  const module = body.module ?? 'statics';
+  // Un cable comparte modulo con la viga pero grafica otras cosas.
+  const module = body.kind === 'cable' ? 'cable' : (body.module ?? 'statics');
   const L = value(body.length.js, bindings) || 1;
   const breaks = body.loads
     .filter((l) => l.kind === 'point' || l.kind === 'couple')
@@ -153,7 +164,7 @@ export function Stage3({ body, doc, bindings, symbols, onBinding }: Props) {
         <SandboxCanvas
           body={body}
           model={doc.stage1}
-          module={module}
+          module={(body.module ?? 'statics') as Module}
           bindings={bindings}
           selection={null}
           onSelect={() => undefined}

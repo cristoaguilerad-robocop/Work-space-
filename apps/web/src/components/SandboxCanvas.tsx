@@ -287,8 +287,28 @@ export function SandboxCanvas({
         );
       })}
 
-      <line x1={toPx(0)} y1={BEAM_Y} x2={toPx(L)} y2={BEAM_Y}
-            className={`beam ${module}`} />
+      {/* Un cable no es una recta: su curva es el resultado del problema, asi
+          que se dibuja evaluando y(x). La escala vertical se ajusta a la
+          flecha para que se vea la forma y no una linea casi plana. */}
+      {body.shape ? (() => {
+        const shape = compile(body.shape.js);
+        const samples = Array.from({ length: 81 }, (_, i) => {
+          const x = (i / 80) * L;
+          return { x, y: shape(x, bindings) };
+        }).filter((s) => Number.isFinite(s.y));
+        if (samples.length < 2) return null;
+        const lo = Math.min(...samples.map((s) => s.y));
+        const hi = Math.max(...samples.map((s) => s.y));
+        const drop = Math.max(hi - lo, 1e-9);
+        const vScale = Math.min(78 / drop, (W - 2 * MARGIN) / L);
+        const points = samples
+          .map((s) => `${toPx(s.x).toFixed(1)},${(BEAM_Y - (s.y - hi) * vScale).toFixed(1)}`)
+          .join(' ');
+        return <polyline points={points} className="cable" />;
+      })() : (
+        <line x1={toPx(0)} y1={BEAM_Y} x2={toPx(L)} y2={BEAM_Y}
+              className={`beam ${module}`} />
+      )}
 
       {body.supports?.map((support) => {
         const at = livePx('support', support.id, 'at', value(support.at.js, bindings));

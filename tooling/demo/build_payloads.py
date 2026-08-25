@@ -54,6 +54,31 @@ def force(load_id, label, region, distribution, units="N/m"):
 FULL = {"type": "full"}
 
 
+def cable(title, fields, right_elevation="0", spec=None):
+    return {
+        "module": "statics", "title": title,
+        "bodies": [{
+            "id": "c1", "name": "Cable", "type": "cable",
+            "domain": {"parameter": "x", "start": "0", "end": "L"},
+            "fields": fields, "constitutive": {},
+            "analysis": {"mode": "rigid", "dof": "cable"},
+            "cable": spec or {"mode": "sag", "sag": "f", "at": None, "H": None},
+        }],
+        "supports": [
+            {"id": "A", "body_id": "c1", "at": "0", "type": "pin",
+             "elevation": "0", "label": ""},
+            {"id": "B", "body_id": "c1", "at": "L", "type": "pin",
+             "elevation": right_elevation, "label": ""},
+        ],
+    }
+
+
+def cable_force(load_id, label, region, distribution, units="N/m"):
+    return {"kind": "load", "id": load_id, "label": label, "quantity": "force",
+            "region": region, "distribution": distribution,
+            "direction": DOWN, "units": units}
+
+
 def thermo(title, fields, boundaries, const=None):
     return {
         "module": "thermo", "title": title,
@@ -197,6 +222,30 @@ CASES = [
                        [force("q1", "Carga triangular", FULL,
                               {"type": "linear", "w_start": "0", "w_end": "w0"})],
                        PINNED, mode="rigid", const={}),
+    },
+
+    {
+        "id": "cable-uniforme", "module": "statics",
+        "name": "Cable con carga uniforme",
+        "note": "Una viga sin rigidez: la forma la sostiene la tension horizontal. H = w0 L^2 / (8 f).",
+        "model": cable("Cable parabolico",
+                       [cable_force("q1", "Peso por metro", FULL, {"type": "uniform", "w": "w0"})]),
+    },
+    {
+        "id": "cable-desnivel", "module": "statics",
+        "name": "Cable con apoyos desnivelados",
+        "note": "La flecha se mide desde la cuerda, no desde la horizontal: con desnivel no son lo mismo.",
+        "model": cable("Cable desnivelado",
+                       [cable_force("q1", "Peso por metro", FULL, {"type": "uniform", "w": "w0"})],
+                       right_elevation="hB"),
+    },
+    {
+        "id": "cable-puntual", "module": "statics",
+        "name": "Cable con carga puntual",
+        "note": "Sin carga repartida el cable queda en dos rectas y la longitud deja de salir de una sola integral.",
+        "model": cable("Cable con puntual",
+                       [cable_force("P1", "Carga colgada", {"type": "point", "at": "L/2"},
+                                    {"type": "point", "magnitude": "P"}, units="N")]),
     },
 
     # ------------------------------------------------------------------ Termo

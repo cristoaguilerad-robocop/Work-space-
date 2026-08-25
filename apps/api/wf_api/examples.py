@@ -221,4 +221,68 @@ EXAMPLES: list[dict] = [
             "probes": [{"id": "P1", "at": ["L/2", "0.5", "0"], "label": "P1"}],
         },
     },
+    {
+        "id": "cable-uniforme",
+        "title": "Cable con carga uniforme",
+        "description": (
+            "Un cable es una viga sin rigidez: la misma densidad de carga, pero la forma "
+            "la sostiene la tension horizontal. H = w0 L^2 / (8 f)."
+        ),
+        "model": {
+            "module": "statics",
+            "title": "Cable parabolico",
+            "bodies": [{
+                "id": "c1", "name": "Cable", "type": "cable",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "load", "id": "q1", "label": "Peso por metro",
+                     "quantity": "force", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "w0"},
+                     "direction": {"frame": "global", "vector": ["0", "-1", "0"]},
+                     "units": "N/m"},
+                ],
+                "constitutive": {},
+                "analysis": {"mode": "rigid", "dof": "cable"},
+                "cable": {"mode": "sag", "sag": "f", "at": None, "H": None},
+            }],
+            "supports": [
+                {"id": "A", "body_id": "c1", "at": "0", "type": "pin",
+                 "elevation": "0", "label": ""},
+                {"id": "B", "body_id": "c1", "at": "L", "type": "pin",
+                 "elevation": "0", "label": ""},
+            ],
+        },
+    },
+    {
+        "id": "cable-desnivel",
+        "title": "Cable con apoyos desnivelados",
+        "description": (
+            "La flecha se mide desde la cuerda, no desde la horizontal: con apoyos a "
+            "distinta altura son cosas distintas."
+        ),
+        "model": {
+            "module": "statics",
+            "title": "Cable desnivelado",
+            "bodies": [{
+                "id": "c1", "name": "Cable", "type": "cable",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "load", "id": "q1", "label": "Peso por metro",
+                     "quantity": "force", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "w0"},
+                     "direction": {"frame": "global", "vector": ["0", "-1", "0"]},
+                     "units": "N/m"},
+                ],
+                "constitutive": {},
+                "analysis": {"mode": "rigid", "dof": "cable"},
+                "cable": {"mode": "sag", "sag": "f", "at": None, "H": None},
+            }],
+            "supports": [
+                {"id": "A", "body_id": "c1", "at": "0", "type": "pin",
+                 "elevation": "0", "label": ""},
+                {"id": "B", "body_id": "c1", "at": "L", "type": "pin",
+                 "elevation": "hB", "label": ""},
+            ],
+        },
+    },
 ]

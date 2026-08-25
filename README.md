@@ -37,6 +37,14 @@ M(x) = ∫ V dx     2 condiciones borde   E(P) = -grad V
 y'' = M/(EI) + κ_T(x)
 ```
 
+Un **cable** es la misma cuenta con la rigidez quitada: sin rigidez a flexion
+no hay momento interno y la forma la sostiene la tension horizontal `H`, que es
+constante pero desconocida:
+
+```
+H y''(x) = -q(x)      2 condiciones de apoyo + la flecha, que despeja H
+```
+
 Estatica y Termo son literalmente la misma ODE de segundo orden integrada dos
 veces con dos condiciones de borde. Electro cambia en que el resultado no vive
 sobre el dominio del cuerpo sino sobre el espacio: ahi lo exacto (carga total,
@@ -56,6 +64,7 @@ Los tres modulos funcionando de punta a punta, con canvas editable.
 | Nucleo de cargas como funciones | listo |
 | **Canvas editable**: colocar, arrastrar y borrar | listo |
 | Estatica: vigas isostaticas, V/M/theta/y, termico, axial | listo |
+| **Cables**: forma, tension horizontal, tensiones en apoyos, longitud | listo |
 | Termo: conduccion 1D, generacion, T fija / flujo / conveccion / aislado | listo |
 | Electro: linea cargada, cargas puntuales, Biot-Savart, mapa 2D de campo | listo |
 | Etapas 1-2-3 con autoguardado y overlays | listo |
@@ -88,7 +97,7 @@ packages/
   schema/     JSON Schema generado desde Pydantic -> tipos TypeScript
 engine/
   wf_core/    dominios, cargas como funciones, integracion simbolica
-  wf_statics/ solver de vigas
+  wf_statics/ solvers de vigas y cables
   wf_thermo/  conduccion estacionaria 1D
   wf_em/      lineas cargadas y conductores
   tests/      casos con solucion cerrada conocida

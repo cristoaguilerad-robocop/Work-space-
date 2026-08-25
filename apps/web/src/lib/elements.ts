@@ -147,6 +147,7 @@ export function makeSupport(kind: string, model: ProblemModel, at: string): Stru
     body_id: model.bodies[0].id,
     at,
     type: (kind as StructuralSupport['type']) ?? 'roller',
+    elevation: '0',
     label: '',
   };
 }

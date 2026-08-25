@@ -260,9 +260,27 @@ class Constitutive(_Base):
     epsilon_r: Expr | None = None
 
 
+class CableSpec(_Base):
+    """Como se cierra el problema de un cable.
+
+    Un cable no tiene rigidez a flexion: su forma la fija la tension horizontal
+    ``H``, que es constante a lo largo del cable pero desconocida. Hace falta
+    un dato mas para determinarla, y hay dos formas usuales de darlo: la flecha
+    en un punto (lo habitual en un problema de curso) o directamente ``H``.
+    """
+
+    #: ``sag`` fija la flecha y despeja H; ``tension`` toma H como dato.
+    mode: Literal["sag", "tension"] = "sag"
+    #: Flecha: distancia vertical de la cuerda al cable, medida en ``at``.
+    sag: Expr | None = "f"
+    at: Expr | None = None
+    #: Tension horizontal impuesta, si ``mode`` es ``tension``.
+    H: Expr | None = None
+
+
 class Analysis(_Base):
     mode: Literal["rigid", "deformable"] = "rigid"
-    dof: Literal["1d_beam"] = "1d_beam"
+    dof: Literal["1d_beam", "cable"] = "1d_beam"
 
 
 class Placement(_Base):
@@ -281,6 +299,8 @@ class Body(_Base):
     fields: list[BodyField] = Field(default_factory=list)
     constitutive: Constitutive = Field(default_factory=Constitutive)
     analysis: Analysis = Field(default_factory=Analysis)
+    #: Solo para cuerpos tipo cable.
+    cable: CableSpec | None = None
 
 
 # --------------------------------------------------------------------------
@@ -298,6 +318,9 @@ class StructuralSupport(_Base):
     body_id: str
     at: Expr
     type: Literal["pin", "roller", "fixed"] = "roller"
+    #: Cota vertical del apoyo. Solo la usan los cables, donde los extremos
+    #: pueden estar a distinta altura y eso cambia la forma de la curva.
+    elevation: Expr = "0"
     label: str = ""
 
 
@@ -394,8 +417,10 @@ class ProblemModel(_Base):
             scan(b.domain)
             scan(b.fields)
             scan(b.constitutive)
+            scan(b.cable)
         for s in self.supports:
             scan(s.at)
+            scan(s.elevation)
         for bc in self.boundaries:
             scan(bc.at)
             scan(bc.value)

@@ -116,20 +116,25 @@ export type K = string | null;
 export type Rho = string | null;
 export type EpsilonR = string | null;
 export type Mode = "rigid" | "deformable";
-export type Dof = "1d_beam";
+export type Dof = "1d_beam" | "cable";
+export type Mode1 = "sag" | "tension";
+export type Sag = string | null;
+export type At1 = string | null;
+export type H1 = string | null;
 export type Bodies = Body[];
 export type Id4 = string;
 export type BodyId = string;
-export type At1 = string;
+export type At2 = string;
 export type Type14 = "pin" | "roller" | "fixed";
+export type Elevation = string;
 export type Label3 = string;
 export type Supports = StructuralSupport[];
 export type Id5 = string;
 export type BodyId1 = string;
-export type At2 = string;
+export type At3 = string;
 export type Type15 = "temperature" | "flux" | "convection" | "insulated";
 export type Value = string | null;
-export type H1 = string | null;
+export type H2 = string | null;
 export type Label4 = string;
 export type Boundaries = BoundaryCondition[];
 export type Id6 = string;
@@ -137,7 +142,7 @@ export type Id6 = string;
  * @minItems 3
  * @maxItems 3
  */
-export type At3 = [unknown, unknown, unknown];
+export type At4 = [unknown, unknown, unknown];
 export type Label5 = string;
 export type Probes = Probe[];
 
@@ -161,6 +166,7 @@ export interface Body {
   fields: Fields;
   constitutive: Constitutive;
   analysis: Analysis;
+  cable: CableSpec | null;
 }
 /**
  * Pose en el mundo. Cambiarla NO invalida la derivacion simbolica.
@@ -332,6 +338,20 @@ export interface Analysis {
   dof: Dof;
 }
 /**
+ * Como se cierra el problema de un cable.
+ *
+ * Un cable no tiene rigidez a flexion: su forma la fija la tension horizontal
+ * ``H``, que es constante a lo largo del cable pero desconocida. Hace falta
+ * un dato mas para determinarla, y hay dos formas usuales de darlo: la flecha
+ * en un punto (lo habitual en un problema de curso) o directamente ``H``.
+ */
+export interface CableSpec {
+  mode: Mode1;
+  sag: Sag;
+  at: At1;
+  H: H1;
+}
+/**
  * Anclado a ``(body_id, at)`` en coordenada del dominio, nunca a pixeles.
  *
  * Si se anclara a la posicion en pantalla, mover el cuerpo en el canvas
@@ -340,8 +360,9 @@ export interface Analysis {
 export interface StructuralSupport {
   id: Id4;
   body_id: BodyId;
-  at: At1;
+  at: At2;
   type: Type14;
+  elevation: Elevation;
   label: Label3;
 }
 /**
@@ -353,10 +374,10 @@ export interface StructuralSupport {
 export interface BoundaryCondition {
   id: Id5;
   body_id: BodyId1;
-  at: At2;
+  at: At3;
   type: Type15;
   value: Value;
-  h: H1;
+  h: H2;
   label: Label4;
 }
 /**
@@ -367,6 +388,6 @@ export interface BoundaryCondition {
  */
 export interface Probe {
   id: Id6;
-  at: At3;
+  at: At4;
   label: Label5;
 }
