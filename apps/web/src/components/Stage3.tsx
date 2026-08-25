@@ -1,9 +1,10 @@
-import type { DerivedBody, ProblemDoc, ProblemModel } from '@wf/schema';
+import type { DerivedBody, ProblemDoc, ProblemModel, UserStep } from '@wf/schema';
 
 import { value } from '../lib/evaluate';
 import type { Module } from '../lib/elements';
 import { FieldMap } from './FieldMap';
 import { Katex } from './Katex';
+import { Notebook } from './Notebook';
 import { Plot } from './Plot';
 import { DEFAULT_VIEW, WorldCanvas } from './WorldCanvas';
 
@@ -15,6 +16,7 @@ interface Props {
   bindings: Record<string, number>;
   symbols: { name: string; latex: string; units: string; description: string }[];
   onBinding: (name: string, next: number) => void;
+  onSteps: (steps: UserStep[]) => void;
 }
 
 interface Diagram { key: string; title: string; units: string; color: string }
@@ -67,11 +69,27 @@ function format(v: number): string {
  * que mover un valor redibuja los diagramas sin ninguna ida por red. El sistema
  * armado en la etapa 1 y las ecuaciones de la 2 quedan a la vista.
  */
-export function Stage3({ bodies, model, module, doc, bindings, symbols, onBinding }: Props) {
+export function Stage3({
+  bodies, model, module, doc, bindings, symbols, onBinding, onSteps,
+}: Props) {
   const quarantined = Object.entries(doc.stage3.quarantined);
+  const suggestions = bodies.flatMap((body) => [
+    ...Object.entries(body.reactions).map(([name, p]) => ({ label: name, latex: p.latex })),
+    ...Object.entries(body.scalars).map(([name, p]) =>
+      ({ label: SCALAR_LABELS[name] ?? name, latex: p.latex })),
+  ]);
 
   return (
     <div className="stage stage3">
+      <Notebook
+        title="Mi desarrollo"
+        hint={'Anota el reemplazo de valores y el resultado al que llegas, con tus '
+          + 'unidades y tus cuentas.'}
+        steps={doc.stage3.steps}
+        onChange={onSteps}
+        suggestions={suggestions}
+      />
+
       <section className="plate">
         <h2>Valores</h2>
         <div className="bindings">

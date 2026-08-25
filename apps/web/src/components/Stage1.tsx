@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DerivedBody, ProblemModel } from '@wf/schema';
+import type { Dimension, DerivedBody, ProblemModel } from '@wf/schema';
 
 import {
   freshId, makeBody, makeBoundary, makeField, makeSupport, paletteFor, type Module,
 } from '../lib/elements';
+import { evalExpr } from '../lib/evalexpr';
 import { Inspector } from './Inspector';
 import { Palette } from './Palette';
+import { DEFAULT_ORBIT, Scene3D, type Orbit } from './Scene3D';
 import { DEFAULT_VIEW, WorldCanvas, type Selection, type View } from './WorldCanvas';
 
 interface Props {
@@ -15,6 +17,8 @@ interface Props {
   bindings: Record<string, number>;
   /** Cuerpos que el motor todavia no puede resolver, con el motivo. */
   unresolved: { body_id: string; message: string }[];
+  dimension: Dimension;
+  onDimension: (dimension: Dimension) => void;
   onChange: (update: (model: ProblemModel) => ProblemModel) => void;
   onBinding: (name: string, value: number) => void;
 }
@@ -26,15 +30,64 @@ interface Props {
  * de la paleta, se hace clic en el mundo -- o sobre un cuerpo, si es algo que
  * se le cuelga encima -- y queda colocado. Despues todo se arrastra.
  */
+const DIMENSIONS: { id: Dimension; label: string; hint: string }[] = [
+  { id: '1d', label: '1D', hint: 'Todo sobre un eje: la viga del libro' },
+  { id: '2d', label: '2D', hint: 'Plano: cuerpos en cualquier direccion' },
+  { id: '3d', label: '3D', hint: 'Espacio: se construye sobre el piso' },
+];
+
 export function Stage1({
-  model, module, bodies, bindings, unresolved, onChange, onBinding,
+  model, module, bodies, bindings, unresolved, dimension, onDimension, onChange, onBinding,
 }: Props) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [view, setView] = useState<View>(DEFAULT_VIEW);
+  const [orbit, setOrbit] = useState<Orbit>(DEFAULT_ORBIT);
   const [showReactions, setShowReactions] = useState(true);
 
   const palette = paletteFor(module);
+
+  /**
+   * Encuadra sobre lo que hay.
+   *
+   * Un "volver al inicio" fijo sirve una sola vez; despues de mover cuerpos por
+   * el plano, lo que uno necesita es que la vista vaya a donde estan.
+   */
+  const fit = useCallback(() => {
+    const points: [number, number, number][] = [];
+    for (const body of model.bodies) {
+      const embedding = body.domain.embedding;
+      if (embedding.type !== 'straight') continue;
+      const origin: [number, number, number] = [
+        evalExpr(embedding.origin[0] as unknown as string, bindings),
+        evalExpr(embedding.origin[1] as unknown as string, bindings),
+        evalExpr(embedding.origin[2] as unknown as string, bindings),
+      ];
+      const direction = [
+        evalExpr(embedding.direction[0] as unknown as string, bindings, 1),
+        evalExpr(embedding.direction[1] as unknown as string, bindings),
+        evalExpr(embedding.direction[2] as unknown as string, bindings),
+      ];
+      const magnitude = Math.hypot(...direction) || 1;
+      const length = evalExpr(body.domain.end, bindings, 1) || 1;
+      points.push(origin, [
+        origin[0] + (direction[0] / magnitude) * length,
+        origin[1] + (direction[1] / magnitude) * length,
+        origin[2] + (direction[2] / magnitude) * length,
+      ]);
+    }
+    if (points.length === 0) { setView(DEFAULT_VIEW); setOrbit(DEFAULT_ORBIT); return; }
+
+    const axis = (i: number) => points.map((p) => p[i]);
+    const span = (i: number) => Math.max(...axis(i)) - Math.min(...axis(i));
+    const mid = (i: number) => (Math.max(...axis(i)) + Math.min(...axis(i))) / 2;
+    // Margen del 40 %: las cargas y los apoyos se dibujan fuera del cuerpo.
+    const width = Math.max(span(0), span(1), span(2), 1) * 1.4;
+
+    setView({ cx: mid(0), cy: mid(1), scale: Math.min(300, 700 / width) });
+    setOrbit({ ...DEFAULT_ORBIT, center: [mid(0), mid(1), mid(2)],
+               scale: Math.min(300, 620 / width) });
+  }, [model.bodies, bindings]);
   const pendingTarget = palette.find((item) => item.id === pending)?.target ?? null;
 
   const remove = useCallback(() => {
@@ -81,7 +134,7 @@ export function Stage1({
   }, [remove]);
 
   const place = useCallback((spot: {
-    at: [number, number]; bodyId?: string; parameter?: string;
+    at: number[]; bodyId?: string; parameter?: string;
   }) => {
     if (!pending) return;
     const item = palette.find((entry) => entry.id === pending);
@@ -91,11 +144,11 @@ export function Stage1({
     // dentro de un updater lo ejecuta durante el render de otro componente, y
     // React lo rechaza. El updater solo tiene que devolver el modelo nuevo.
     let created: string | null = null;
-    if (item.target === 'body') created = makeBody(pending, module, model, spot.at).id;
+    if (item.target === 'body') created = makeBody(pending, module, model, spot.at, dimension).id;
 
     onChange((m) => {
       if (item.target === 'body') {
-        const body = makeBody(pending, module, m, spot.at);
+        const body = makeBody(pending, module, m, spot.at, dimension);
         created = body.id;
         return { ...m, bodies: [...m.bodies, body] };
       }
@@ -129,13 +182,40 @@ export function Stage1({
     });
     setPending(null);
     if (created) setSelection({ target: 'body', id: created });
-  }, [pending, palette, module, model, onChange]);
+  }, [pending, palette, module, model, dimension, onChange]);
 
   return (
     <div className="sheet cols-model">
       <div className="stack">
         <section className="plate">
-          <h2>Sistema</h2>
+          <div className="panel-head">
+            <h2>Sistema</h2>
+            <span className="dims">
+              {DIMENSIONS.map((entry) => (
+                <button key={entry.id} type="button" title={entry.hint}
+                        aria-pressed={dimension === entry.id}
+                        onClick={() => onDimension(entry.id)}>
+                  {entry.label}
+                </button>
+              ))}
+            </span>
+          </div>
+          {dimension === '3d' ? (
+            <Scene3D
+              bodies={bodies}
+              model={model}
+              bindings={bindings}
+              selection={selection}
+              onSelect={setSelection}
+              onChange={onChange}
+              pending={pending}
+              pendingTarget={pendingTarget}
+              onPlace={place}
+              orbit={orbit}
+              onOrbit={setOrbit}
+              showReactions={showReactions}
+            />
+          ) : (
           <WorldCanvas
             bodies={bodies}
             model={model}
@@ -151,19 +231,32 @@ export function Stage1({
             view={view}
             onView={setView}
             showReactions={showReactions}
+            lockToAxis={dimension === '1d'}
           />
+          )}
           <p className="hint">
-            Arrastra un cuerpo para moverlo y su extremo para girarlo o estirarlo (engancha
-            cada {15}°; con <kbd>Alt</kbd> queda libre). Lo que se pone encima engancha a
-            fracciones del dominio, para que el planteo siga siendo simbolico.{' '}
-            <kbd>Supr</kbd> quita lo seleccionado. La rueda acerca, el fondo mueve la vista.
+            {dimension === '3d' ? (
+              <>
+                Arrastra para girar la escena y la rueda acerca. Los cuerpos se apoyan
+                en el piso; para colgarles cargas y apoyos conviene pasar a 2D, donde el
+                clic sobre un cuerpo es inequivoco.
+              </>
+            ) : (
+              <>
+                {dimension === '1d' && 'Los cuerpos quedan sobre el eje horizontal. '}
+                Arrastra un cuerpo para moverlo
+                {dimension === '2d' && ' y su extremo para girarlo o estirarlo (engancha cada 15°; con Alt queda libre)'}.
+                Lo que se pone encima engancha a fracciones del dominio, para que el
+                planteo siga siendo simbolico. <kbd>Supr</kbd> quita lo seleccionado.
+              </>
+            )}
           </p>
           <label>
             <input type="checkbox" checked={showReactions}
                    onChange={(e) => setShowReactions(e.target.checked)} />
             {' '}Mostrar las reacciones calculadas
           </label>
-          <button type="button" onClick={() => setView(DEFAULT_VIEW)}>Encuadrar</button>
+          <button type="button" onClick={fit}>Encuadrar</button>
         </section>
 
         <section className="plate">

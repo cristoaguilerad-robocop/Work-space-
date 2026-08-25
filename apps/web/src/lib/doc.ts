@@ -1,16 +1,34 @@
-import type { Binding, DeriveResponse, ProblemDoc, ProblemModel } from '@wf/schema';
+import type {
+  Binding, DeriveResponse, DocSummary, Dimension, ProblemDoc, ProblemModel, UserStep,
+} from '@wf/schema';
 
 const STORAGE_PREFIX = 'wf:doc:';
 const INDEX_KEY = 'wf:index';
 
-export function createDoc(model: ProblemModel, id = crypto.randomUUID()): ProblemDoc {
+export function createDoc(
+  model: ProblemModel, title = 'Ejercicio nuevo', id = crypto.randomUUID(),
+): ProblemDoc {
+  const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     id,
-    updatedAt: new Date().toISOString(),
+    title,
+    createdAt: now,
+    updatedAt: now,
+    dimension: '2d',
     stage1: model,
-    stage2: { edits: {}, added: [] },
-    stage3: { bindings: {}, quarantined: {} },
+    stage2: { steps: [], edits: {}, added: [] },
+    stage3: { steps: [], bindings: {}, quarantined: {} },
+  };
+}
+
+/** Un paso vacio, listo para escribir. */
+export function newStep(title = ''): UserStep {
+  return {
+    id: crypto.randomUUID().slice(0, 8),
+    title,
+    body: '',
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -44,7 +62,7 @@ export function reconcile(doc: ProblemDoc, derived: DeriveResponse): ProblemDoc 
     if (!live.has(name)) quarantined[name] = binding;
   }
 
-  return { ...doc, stage3: { bindings, quarantined } };
+  return { ...doc, stage3: { ...doc.stage3, bindings, quarantined } };
 }
 
 /** Ids de ecuacion que ya no existen: sus ediciones quedan huerfanas. */
@@ -72,20 +90,86 @@ export function save(doc: ProblemDoc): void {
   try {
     localStorage.setItem(STORAGE_PREFIX + doc.id, JSON.stringify(stamped));
     const index = listDocs().filter((entry) => entry.id !== doc.id);
-    index.unshift({ id: doc.id, title: doc.stage1.title ?? 'Sin titulo', updatedAt: stamped.updatedAt });
-    localStorage.setItem(INDEX_KEY, JSON.stringify(index.slice(0, 50)));
+    index.unshift(summarize(stamped));
+    localStorage.setItem(INDEX_KEY, JSON.stringify(index.slice(0, 200)));
   } catch {
     // Modo privado o cuota llena: el trabajo en memoria sigue intacto.
   }
 }
 
+function summarize(doc: ProblemDoc): DocSummary {
+  return {
+    id: doc.id,
+    title: doc.title || 'Sin titulo',
+    module: doc.stage1.module ?? 'statics',
+    updatedAt: doc.updatedAt,
+    steps: doc.stage2.steps.length + doc.stage3.steps.length,
+  };
+}
+
+/** Borra un ejercicio del disco y del indice. */
+export function remove(id: string): void {
+  try {
+    localStorage.removeItem(STORAGE_PREFIX + id);
+    localStorage.setItem(
+      INDEX_KEY, JSON.stringify(listDocs().filter((entry) => entry.id !== id)),
+    );
+  } catch {
+    // Nada que hacer: el indice se reconstruye al guardar el siguiente.
+  }
+}
+
+/** Copia un ejercicio con id nuevo, para partir de uno que ya salio bien. */
+export function duplicate(doc: ProblemDoc, title: string): ProblemDoc {
+  const now = new Date().toISOString();
+  return {
+    ...structuredClone(doc),
+    id: crypto.randomUUID(),
+    title,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function setDimension(doc: ProblemDoc, dimension: Dimension): ProblemDoc {
+  return { ...doc, dimension };
+}
+
 export function load(id: string): ProblemDoc | null {
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + id);
-    return raw ? (JSON.parse(raw) as ProblemDoc) : null;
+    return migrate(raw ? (JSON.parse(raw) as ProblemDoc) : null);
   } catch {
     return null;
   }
+}
+
+/**
+ * Completa un documento guardado con una version anterior del esquema.
+ *
+ * Se migra en vez de descartar: lo que hay guardado es trabajo de la persona,
+ * y perderlo porque el programa cambio de forma no es aceptable. Solo se
+ * descarta lo que no tiene arreglo posible.
+ */
+function migrate(doc: ProblemDoc | null): ProblemDoc | null {
+  if (!doc || !doc.stage1 || !Array.isArray(doc.stage1.bodies)) return null;
+  return {
+    ...doc,
+    version: 2,
+    title: doc.title || doc.stage1.title || 'Ejercicio sin titulo',
+    createdAt: doc.createdAt || doc.updatedAt || new Date().toISOString(),
+    dimension: doc.dimension ?? '2d',
+    stage2: {
+      steps: doc.stage2?.steps ?? [],
+      edits: doc.stage2?.edits ?? {},
+      added: doc.stage2?.added ?? [],
+    },
+    stage3: {
+      steps: doc.stage3?.steps ?? [],
+      bindings: doc.stage3?.bindings ?? {},
+      quarantined: doc.stage3?.quarantined ?? {},
+    },
+  };
 }
 
 /**
@@ -100,14 +184,14 @@ export function loadLatest(): ProblemDoc | null {
   const [recent] = listDocs();
   if (!recent) return null;
   const doc = load(recent.id);
-  if (!doc || !doc.stage1 || !Array.isArray(doc.stage1.bodies)) return null;
-  if (!doc.stage2?.edits || !doc.stage3?.bindings) return null;
-  return doc;
+  return migrate(doc);
 }
 
-export function listDocs(): { id: string; title: string; updatedAt: string }[] {
+export function listDocs(): DocSummary[] {
   try {
-    return JSON.parse(localStorage.getItem(INDEX_KEY) ?? '[]');
+    const raw = JSON.parse(localStorage.getItem(INDEX_KEY) ?? '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((entry) => entry && typeof entry.id === 'string');
   } catch {
     return [];
   }

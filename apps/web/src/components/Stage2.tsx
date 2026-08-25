@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import type { DerivedBody, ProblemDoc } from '@wf/schema';
+import type { DerivedBody, ProblemDoc, UserStep } from '@wf/schema';
 
 import { Katex } from './Katex';
+import { Notebook } from './Notebook';
 
 interface Props {
   bodies: DerivedBody[];
   doc: ProblemDoc;
   orphans: string[];
   onEdit: (id: string, latex: string | null) => void;
+  onSteps: (steps: UserStep[]) => void;
 }
 
 const ROLE_TITLES: Record<string, string> = {
@@ -33,9 +35,30 @@ const STEP_ICONS: Record<string, string> = {
  * derivado: si el usuario vuelve a la etapa 1 y cambia el modelo, la derivacion
  * se rehace y los parches se re-aplican sobre el resultado nuevo.
  */
-export function Stage2({ bodies, doc, orphans, onEdit }: Props) {
+export function Stage2({ bodies, doc, orphans, onEdit, onSteps }: Props) {
+  // Lo que el motor dedujo se ofrece como material para traer al cuaderno, no
+  // como el contenido de la etapa: el planteo lo escribe la persona.
+  const suggestions = bodies.flatMap((body) => body.equations
+    .filter((e) => e.role === 'equilibrium' || e.role === 'result' || e.role === 'field')
+    .map((e) => ({ label: e.title, latex: e.latex })));
+
   return (
     <div className="stage stage2">
+      <Notebook
+        title="Mi planteo"
+        hint={'Escribi como encaras el ejercicio: que ecuaciones planteas y por que. '
+          + 'La matematica va entre signos peso y el teclado de abajo la inserta.'}
+        steps={doc.stage2.steps}
+        onChange={onSteps}
+        suggestions={suggestions}
+      />
+
+      <details className="derived">
+        <summary>Lo que dedujo el motor ({suggestions.length} expresiones)</summary>
+        <p className="hint">
+          Material de consulta. Puede estar mal o no ser el camino que vos elegis: lo que
+          se guarda como tu procedimiento es lo de arriba.
+        </p>
       {orphans.length > 0 && (
         <div className="panel warning">
           <h2>Ediciones huerfanas</h2>
@@ -54,10 +77,11 @@ export function Stage2({ bodies, doc, orphans, onEdit }: Props) {
         </div>
       )}
 
-      {bodies.map((body) => (
-        <BodyDerivation key={body.body_id} body={body} doc={doc}
-                        onEdit={onEdit} showName={bodies.length > 1} />
-      ))}
+        {bodies.map((body) => (
+          <BodyDerivation key={body.body_id} body={body} doc={doc}
+                          onEdit={onEdit} showName={bodies.length > 1} />
+        ))}
+      </details>
     </div>
   );
 }

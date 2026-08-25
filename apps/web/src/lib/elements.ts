@@ -201,7 +201,8 @@ export function makeBoundary(
  * el mismo simbolo a mano.
  */
 export function makeBody(
-  kind: string, module: Module, model: ProblemModel, at: [number, number],
+  kind: string, module: Module, model: ProblemModel, at: number[],
+  dimension: '1d' | '2d' | '3d' = '2d',
 ): Body {
   const id = freshId('b', model.bodies.map((b) => b.id));
   const lengthSymbol = `L${id.slice(1)}`;
@@ -226,9 +227,14 @@ export function makeBody(
       end: lengthSymbol,
       embedding: {
         type: 'straight',
-        // Redondeado: el modelo se lee y se edita a mano, y una coordenada
-        // con dieciseis decimales no dice nada que dos no digan.
-        origin: [at[0].toFixed(2), at[1].toFixed(2), '0'],
+        // Redondeado: el modelo se lee y se edita a mano, y una coordenada con
+        // dieciseis decimales no dice nada que dos no digan. En 1D la altura no
+        // es un grado de libertad, asi que arranca en cero.
+        origin: [
+          at[0].toFixed(2),
+          dimension === '1d' ? '0' : (at[1] ?? 0).toFixed(2),
+          (at[2] ?? 0).toFixed(2),
+        ],
         direction: ['1', '0', '0'],
       },
       jacobian: '1',

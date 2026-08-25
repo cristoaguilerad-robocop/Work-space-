@@ -169,6 +169,25 @@ export interface Binding {
 }
 
 /**
+ * Un paso escrito por el usuario.
+ *
+ * Esta es la pieza central del cuaderno: lo que importa guardar no es lo que
+ * el motor deduce, sino lo que la persona decidio hacer y en que orden. El
+ * cuerpo es texto con matematica entre `$...$`, para poder mezclar
+ * "planteo equilibrio en A" con la ecuacion misma.
+ */
+export interface UserStep {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+/** En que dimension se arma el ejercicio. Es una preferencia del constructor,
+ *  no del modelo fisico: el mismo sistema se puede mirar de las tres formas. */
+export type Dimension = '1d' | '2d' | '3d';
+
+/**
  * Documento completo con las tres etapas.
  *
  * Las etapas 2 y 3 NO son copias de lo derivado: son *overlays*. La etapa 2
@@ -178,19 +197,38 @@ export interface Binding {
  * re-aplican los overlays por id.
  */
 export interface ProblemDoc {
-  version: 1;
+  version: 2;
   id: string;
+  /** Nombre del ejercicio, para encontrarlo en la biblioteca. */
+  title: string;
+  createdAt: string;
   updatedAt: string;
+  /** Con que dimension se esta armando. */
+  dimension: Dimension;
   stage1: ProblemModel;
   stage2: {
-    /** Parches por id de ecuacion. La derivacion sigue siendo la base. */
+    /** El procedimiento escrito a mano. Lo que el usuario quiere guardar. */
+    steps: UserStep[];
+    /** Parches por id de ecuacion derivada. La derivacion sigue siendo la base. */
     edits: Record<string, string>;
     /** Ecuaciones que el usuario agrego a mano. */
     added: { id: string; latex: string }[];
   };
   stage3: {
+    /** El procedimiento numerico, escrito a mano. */
+    steps: UserStep[];
     bindings: Record<string, Binding>;
     /** Valores cuyo simbolo ya no existe en el modelo. No se borran: se aislan. */
     quarantined: Record<string, Binding>;
   };
+}
+
+/** Una entrada de la biblioteca de ejercicios. */
+export interface DocSummary {
+  id: string;
+  title: string;
+  module: string;
+  updatedAt: string;
+  /** Cuantos pasos escritos tiene, sumando las dos etapas. */
+  steps: number;
 }

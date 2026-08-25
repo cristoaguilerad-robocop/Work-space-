@@ -38,6 +38,8 @@ interface Props {
   view: View;
   onView: (view: View) => void;
   showReactions: boolean;
+  /** Modo 1D: los cuerpos viven sobre el eje horizontal y no se giran. */
+  lockToAxis?: boolean;
   interactive?: boolean;
 }
 
@@ -90,7 +92,8 @@ type FieldSpec = MechanicalLoad | ScalarSource;
  */
 export function WorldCanvas({
   bodies, model, module, bindings, selection, onSelect, onChange, onBinding,
-  pending, pendingTarget, onPlace, view, onView, showReactions, interactive = true,
+  pending, pendingTarget, onPlace, view, onView, showReactions,
+  lockToAxis = false, interactive = true,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -153,7 +156,14 @@ export function WorldCanvas({
 
   // ------------------------------------------------------------------ edicion
 
-  const moveBody = (id: string, delta: Vec) => onChange((m) => ({
+  // En 1D los cuerpos se deslizan sobre el eje: la altura no es un grado de
+  // libertad del problema, es una coincidencia de como se dibujo.
+  const moveBody = (id: string, raw: Vec) => {
+    const delta: Vec = lockToAxis ? [raw[0], 0] : raw;
+    return applyMove(id, delta);
+  };
+
+  const applyMove = (id: string, delta: Vec) => onChange((m) => ({
     ...m,
     bodies: m.bodies.map((b) => {
       if (b.id !== id || b.domain.embedding.type !== 'straight') return b;
@@ -191,8 +201,8 @@ export function WorldCanvas({
     const distance = norm(delta);
     if (distance < 1e-6) return;
 
-    let angle = Math.atan2(delta[1], delta[0]);
-    if (snap) {
+    let angle = lockToAxis ? 0 : Math.atan2(delta[1], delta[0]);
+    if (snap && !lockToAxis) {
       const step = (ANGLE_SNAP * Math.PI) / 180;
       angle = Math.round(angle / step) * step;
     }
@@ -277,7 +287,7 @@ export function WorldCanvas({
 
     if (pending) {
       if (pendingTarget === 'body' || pendingTarget === 'probe') {
-        onPlace({ at: world });
+        onPlace({ at: lockToAxis ? [world[0], 0] : world });
       } else {
         const hit = nearestBody(world);
         if (hit) {
