@@ -230,14 +230,12 @@ def test_thermal_and_mechanical_superpose():
 
 # ---------------------------------------------------------------- diagnostico
 
-def test_indeterminate_is_reported_not_guessed():
+def test_mechanism_is_reported_not_guessed():
+    """Con menos de dos incognitas no hay estructura, hay un mecanismo."""
     body = beam([MechanicalLoad(id="q1", region=FullRegion(),
                                 distribution=UniformDistribution(w="w0"), direction=DOWN)])
-    supports = simply_supported() + [
-        StructuralSupport(id="C", body_id="b1", at="L/2", type="roller")
-    ]
-    with pytest.raises(ModelError, match="isostaticos"):
-        solve_beam(body, supports)
+    with pytest.raises(ModelError, match="mecanismo"):
+        solve_beam(body, [StructuralSupport(id="A", body_id="b1", at="0", type="roller")])
 
 
 def test_deformable_without_material_is_reported():

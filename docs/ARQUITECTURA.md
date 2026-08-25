@@ -106,8 +106,9 @@ donde `model_dump_json` siempre emite todos los campos.
 Un solver que devuelve un numero plausible cuando el modelo esta mal planteado
 es peor que uno que se planta. Se reportan como error, no se resuelven:
 
-- mas o menos de 2 incognitas de reaccion en el plano transversal
-  (hiperestatico o inestable)
+- menos de 2 incognitas de reaccion (mecanismo, no estructura)
+- hiperestatico en modo rigido, o sin E e I: no es que no se pueda resolver, es
+  que la respuesta depende de la rigidez y sin ella no hay respuesta
 - modo deformable sin `E` e `I`
 - gradiente termico sin altura de seccion `h`
 - restriccion axial en mas de un punto (hiperestatico axial)
@@ -138,8 +139,7 @@ flecha insinuaria una direccion que el modelo no tiene.
 **Hecho** — Termo (conduccion 1D) y Electro (lineas cargadas, Biot-Savart,
 mapa 2D), sobre el mismo nucleo. Canvas editable en los tres modulos.
 
-**Proximo** — multi-cuerpo y conexiones; hiperestaticos (por compatibilidad de
-desplazamientos, reusando la elastica que ya se calcula); vista 3D; dominios
+**Proximo** — multi-cuerpo y conexiones; vista 3D; dominios
 curvos en Electro (el `Domain` ya lleva el jacobiano explicito y el
 discriminador `kind`, pero `ArcEmbedding` todavia no tiene marco local).
 

@@ -37,6 +37,11 @@ M(x) = ∫ V dx     2 condiciones borde   E(P) = -grad V
 y'' = M/(EI) + κ_T(x)
 ```
 
+Un sistema **hiperestatico** tampoco necesita otra teoria: el equilibrio deja
+incognitas sin determinar y las que faltan son *las mismas* condiciones de
+desplazamiento que ya cierran un isostatico. Se resuelve todo junto --
+reacciones y constantes de integracion -- en un solo sistema lineal.
+
 Un **cable** es la misma cuenta con la rigidez quitada: sin rigidez a flexion
 no hay momento interno y la forma la sostiene la tension horizontal `H`, que es
 constante pero desconocida:
@@ -69,7 +74,8 @@ Los tres modulos funcionando de punta a punta, con canvas editable.
 | Electro: linea cargada, cargas puntuales, Biot-Savart, mapa 2D de campo | listo |
 | Etapas 1-2-3 con autoguardado y overlays | listo |
 | Vista 3D | pendiente |
-| Multi-cuerpo, conexiones, hiperestaticos | pendiente (se detectan y se reportan) |
+| **Hiperestaticos** por compatibilidad de desplazamientos | listo |
+| Multi-cuerpo y conexiones | pendiente (se detectan y se reportan) |
 
 ## El sandbox
 

@@ -285,4 +285,65 @@ EXAMPLES: list[dict] = [
             ],
         },
     },
+    {
+        "id": "hiperestatica",
+        "title": "Viga empotrada-apoyada (hiperestatica)",
+        "description": (
+            "El equilibrio deja una incognita sin determinar. Las ecuaciones que faltan "
+            "son las mismas condiciones de desplazamiento que cierran un isostatico."
+        ),
+        "model": {
+            "module": "statics",
+            "title": "Empotrada-apoyada",
+            "bodies": [{
+                "id": "bar1", "name": "Viga", "type": "beam",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "load", "id": "q1", "label": "Carga uniforme",
+                     "quantity": "force", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "w0"},
+                     "direction": {"frame": "global", "vector": ["0", "-1", "0"]},
+                     "units": "N/m"},
+                ],
+                "constitutive": {"E": "E", "I": "I"},
+                "analysis": {"mode": "deformable", "dof": "1d_beam"},
+            }],
+            "supports": [
+                {"id": "A", "body_id": "bar1", "at": "0", "type": "fixed",
+                 "elevation": "0", "label": ""},
+                {"id": "B", "body_id": "bar1", "at": "L", "type": "roller",
+                 "elevation": "0", "label": ""},
+            ],
+        },
+    },
+    {
+        "id": "continua",
+        "title": "Viga continua sobre tres apoyos",
+        "description": "Dos vanos iguales: el apoyo central toma 5/8 de la carga total.",
+        "model": {
+            "module": "statics",
+            "title": "Viga continua",
+            "bodies": [{
+                "id": "bar1", "name": "Viga continua", "type": "beam",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "load", "id": "q1", "label": "Carga uniforme",
+                     "quantity": "force", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "w0"},
+                     "direction": {"frame": "global", "vector": ["0", "-1", "0"]},
+                     "units": "N/m"},
+                ],
+                "constitutive": {"E": "E", "I": "I"},
+                "analysis": {"mode": "deformable", "dof": "1d_beam"},
+            }],
+            "supports": [
+                {"id": "A", "body_id": "bar1", "at": "0", "type": "roller",
+                 "elevation": "0", "label": ""},
+                {"id": "B", "body_id": "bar1", "at": "L/2", "type": "roller",
+                 "elevation": "0", "label": ""},
+                {"id": "C", "body_id": "bar1", "at": "L", "type": "roller",
+                 "elevation": "0", "label": ""},
+            ],
+        },
+    },
 ]

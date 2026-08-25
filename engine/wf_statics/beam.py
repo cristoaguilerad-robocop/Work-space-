@@ -111,14 +111,22 @@ def solve_beam(body: Body, supports: list[StructuralSupport]) -> BeamSolution:
             q_react += sg.couple_term(Mr, x, at)
             unknowns.append(Mr)
 
-    if len(unknowns) != 2:
+    if len(unknowns) < 2:
         raise ModelError(
             f"el cuerpo {body.id!r} tiene {len(unknowns)} incognitas de reaccion en el "
-            "plano transversal; esta version resuelve solo sistemas isostaticos "
-            "(exactamente 2). Revisa los apoyos."
+            "plano transversal y hacen falta al menos 2: la configuracion de apoyos es "
+            "un mecanismo, no una estructura."
         )
 
     q_total = sp.expand(loading.q_transverse + q_react)
+
+    if len(unknowns) > 2:
+        # Hiperestatico: el equilibrio solo no alcanza. Las ecuaciones que
+        # faltan son las de compatibilidad, y ya las tenemos: son las mismas
+        # condiciones de borde de desplazamiento que usa el modo deformable.
+        # Se resuelve todo junto -- reacciones y constantes de integracion --
+        # en vez de en dos etapas.
+        return _solve_indeterminate(body, supports, loading, sol, x, L, unknowns, q_total)
 
     sum_f = resultant(q_total, x, L)
     sum_m = moment_about_origin(q_total, x, L)
@@ -307,3 +315,135 @@ def _solve_deflection(body, supports, loading, sol, x, L) -> None:
     sol.trace.add("deflection", "Deflexion", y, lhs="y(x)", kind="solve")
     sol.equations.add(f"{body.id}:theta", "Pendiente", theta, lhs=r"\theta(x)", role="field")
     sol.equations.add(f"{body.id}:y", "Deflexion", y, lhs="y(x)", role="field")
+
+
+def _displacement_conditions(supports, y, theta, x):
+    """Condiciones de desplazamiento que imponen los apoyos.
+
+    Son las mismas que cierran el problema isostatico. En un hiperestatico son
+    ademas las ecuaciones de compatibilidad que le faltan al equilibrio: no hay
+    dos teorias, hay una sola lista de condiciones y a veces sobran.
+    """
+    conditions: list[tuple[str, sp.Eq]] = []
+    for s in supports:
+        at = parse(s.at)
+        if s.type in _TRANSVERSE_RESTRAINT:
+            conditions.append((f"y({s.id})", sp.Eq(sg.evaluate_at(y, x, at), 0)))
+        if s.type == "fixed":
+            conditions.append((f"theta({s.id})", sp.Eq(sg.evaluate_at(theta, x, at), 0)))
+    return conditions
+
+
+def _solve_indeterminate(body, supports, loading, sol, x, L, unknowns, q_total):
+    """Resuelve equilibrio y compatibilidad como un unico sistema lineal."""
+    degree = len(unknowns) - 2
+    sol.notes.append(
+        f"Sistema hiperestatico de grado {degree}: el equilibrio deja {degree} "
+        "incognita(s) sin determinar y se cierra con las condiciones de "
+        "compatibilidad de desplazamientos."
+    )
+
+    if body.analysis.mode != "deformable":
+        raise ModelError(
+            f"el cuerpo {body.id!r} es hiperestatico (grado {degree}): las reacciones no "
+            "salen solo del equilibrio. Hay que analizarlo en modo deformable, porque "
+            "las ecuaciones que faltan son de compatibilidad de desplazamientos."
+        )
+
+    E, I = body.constitutive.E, body.constitutive.I
+    if not (E and I):
+        raise ModelError(
+            f"el cuerpo {body.id!r} es hiperestatico y necesita E e I: la rigidez decide "
+            "como se reparten las reacciones."
+        )
+    EI = parse(E) * parse(I)
+    kappa_T = loading.thermal.kappa if loading.thermal else sp.S.Zero
+
+    trace, eqs = sol.trace, sol.equations
+
+    # Se integra con las reacciones todavia como incognitas.
+    V = sg.antiderivative(q_total, x)
+    M = sg.antiderivative(V, x)
+    curvature = sp.expand(M / EI + kappa_T)
+
+    C1, C2 = symbol("C1"), symbol("C2")
+    theta0 = sg.antiderivative(curvature, x)
+    theta = sp.expand(theta0 + C1)
+    y = sp.expand(sg.antiderivative(theta0, x) + C1 * x + C2)
+
+    trace.add("shear-raw", "Cortante con las reacciones sin determinar", V, lhs="V(x)",
+              kind="integrate")
+    trace.add("moment-raw", "Momento flector", M, lhs="M(x)", kind="integrate")
+    trace.add("defl-raw", "Deflexion", y, lhs="y(x)", kind="integrate",
+              detail="Se integra igual que en un isostatico, pero las reacciones siguen "
+                     "siendo incognitas.")
+
+    equilibrium = [
+        sp.Eq(resultant(q_total, x, L), 0),
+        sp.Eq(moment_about_origin(q_total, x, L), 0),
+    ]
+    eqs.add(f"{body.id}:sumF", "Equilibrio de fuerzas", equilibrium[0], role="equilibrium")
+    eqs.add(f"{body.id}:sumM", "Equilibrio de momentos", equilibrium[1], role="equilibrium")
+    trace.add("sumF", "Equilibrio de fuerzas", equilibrium[0], kind="algebra")
+    trace.add("sumM", "Equilibrio de momentos respecto del origen", equilibrium[1],
+              kind="algebra")
+
+    conditions = _displacement_conditions(supports, y, theta, x)
+    for index, (name, equation) in enumerate(conditions):
+        eqs.add(f"{body.id}:comp{index}", f"Compatibilidad {name}", equation,
+                role="equilibrium",
+                detail="Condicion de desplazamiento en un apoyo.")
+        trace.add(f"comp{index}", f"Compatibilidad {name}", equation, kind="algebra")
+
+    system = equilibrium + [equation for _, equation in conditions]
+    variables = [*unknowns, C1, C2]
+    if len(system) != len(variables):
+        raise ModelError(
+            f"el cuerpo {body.id!r} plantea {len(system)} ecuaciones para "
+            f"{len(variables)} incognitas: revisa que cada apoyo aporte las condiciones "
+            "que corresponden a su tipo."
+        )
+
+    solution = sp.solve(system, variables, dict=True)
+    if not solution:
+        raise ModelError(
+            "el sistema de equilibrio y compatibilidad no tiene solucion: la "
+            "configuracion de apoyos es inestable."
+        )
+    values = solution[0]
+
+    sol.reactions = {
+        str(name): sp.simplify(values[name]) for name in unknowns if name in values
+    }
+    for name, value in sol.reactions.items():
+        trace.add(f"reaction:{name}", f"Reaccion {name}", value, lhs=name, kind="solve")
+        eqs.add(f"{body.id}:{name}", f"Reaccion {name}", value, lhs=name, role="result")
+
+    substitution = {key: sp.simplify(value) for key, value in values.items()}
+    sol.functions["q"] = sp.expand(q_total.subs(substitution))
+    sol.functions["V"] = sp.expand(V.subs(substitution))
+    sol.functions["M"] = sp.expand(M.subs(substitution))
+    sol.functions["curvature"] = sp.expand(curvature.subs(substitution))
+    sol.functions["theta"] = sp.expand(theta.subs(substitution))
+    sol.functions["y"] = sp.expand(y.subs(substitution))
+
+    for key, label in [("V", "Cortante"), ("M", "Momento flector"),
+                       ("theta", "Pendiente"), ("y", "Deflexion")]:
+        eqs.add(f"{body.id}:{key}", label, sol.functions[key],
+                lhs={"V": "V(x)", "M": "M(x)", "theta": r"\theta(x)", "y": "y(x)"}[key],
+                role="field")
+    trace.add("shear", "Cortante", sol.functions["V"], lhs="V(x)", kind="solve")
+    trace.add("moment", "Momento flector", sol.functions["M"], lhs="M(x)", kind="solve")
+    trace.add("deflection", "Deflexion", sol.functions["y"], lhs="y(x)", kind="solve")
+
+    res_v = sp.simplify(sg.activate(sol.functions["V"], x, L))
+    res_m = sp.simplify(sg.activate(sol.functions["M"], x, L))
+    sol.residuals = {"V_end": res_v, "M_end": res_m}
+    trace.add("check", "Verificacion en el extremo",
+              f"V(L) = {sp.latex(res_v)}, \\quad M(L) = {sp.latex(res_m)}", kind="check",
+              detail="Ambos deben anularse si las reacciones son correctas.")
+    if res_v != 0 or res_m != 0:
+        sol.notes.append(f"Residuo no nulo en el extremo (V={res_v}, M={res_m}).")
+
+    _solve_axial(body, supports, loading, sol, x, L)
+    return sol
