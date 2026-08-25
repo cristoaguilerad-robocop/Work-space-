@@ -1,0 +1,931 @@
+{
+  "$defs": {
+    "Analysis": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "rigid",
+          "enum": [
+            "rigid",
+            "deformable"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "dof": {
+          "const": "1d_beam",
+          "default": "1d_beam",
+          "title": "Dof",
+          "type": "string"
+        }
+      },
+      "title": "Analysis",
+      "type": "object"
+    },
+    "ArcEmbedding": {
+      "additionalProperties": false,
+      "description": "Arco de radio constante en el plano XY. Reservado para Electro/Termo.",
+      "properties": {
+        "type": {
+          "const": "arc",
+          "default": "arc",
+          "title": "Type",
+          "type": "string"
+        },
+        "center": {
+          "default": [
+            "0",
+            "0",
+            "0"
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Center",
+          "type": "array"
+        },
+        "radius": {
+          "default": "R",
+          "title": "Radius",
+          "type": "string"
+        },
+        "start_angle": {
+          "default": "0",
+          "title": "Start Angle",
+          "type": "string"
+        }
+      },
+      "title": "ArcEmbedding",
+      "type": "object"
+    },
+    "Body": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "default": "beam",
+          "enum": [
+            "beam",
+            "bar",
+            "cable",
+            "disc"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/$defs/Placement"
+        },
+        "domain": {
+          "$ref": "#/$defs/Domain1D"
+        },
+        "fields": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "load": "#/$defs/MechanicalLoad",
+                "thermal": "#/$defs/ThermalField"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/MechanicalLoad"
+              },
+              {
+                "$ref": "#/$defs/ThermalField"
+              }
+            ]
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "constitutive": {
+          "$ref": "#/$defs/Constitutive"
+        },
+        "analysis": {
+          "$ref": "#/$defs/Analysis"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Body",
+      "type": "object"
+    },
+    "Constitutive": {
+      "additionalProperties": false,
+      "description": "Material y seccion. Todo opcional: el modo rigido no necesita nada.",
+      "properties": {
+        "E": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "E"
+        },
+        "I": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "I"
+        },
+        "A": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "A"
+        },
+        "alpha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alpha"
+        },
+        "h": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H"
+        },
+        "k": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K"
+        },
+        "rho": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rho"
+        }
+      },
+      "title": "Constitutive",
+      "type": "object"
+    },
+    "Direction": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "default": "global",
+          "enum": [
+            "global",
+            "local"
+          ],
+          "title": "Frame",
+          "type": "string"
+        },
+        "vector": {
+          "default": [
+            "0",
+            "-1",
+            "0"
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Vector",
+          "type": "array"
+        }
+      },
+      "title": "Direction",
+      "type": "object"
+    },
+    "Domain1D": {
+      "additionalProperties": false,
+      "description": "Dominio parametrico de un cuerpo idealizado como curva.",
+      "properties": {
+        "kind": {
+          "const": "curve1d",
+          "default": "curve1d",
+          "title": "Kind",
+          "type": "string"
+        },
+        "parameter": {
+          "default": "x",
+          "title": "Parameter",
+          "type": "string"
+        },
+        "start": {
+          "default": "0",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "default": "L",
+          "title": "End",
+          "type": "string"
+        },
+        "embedding": {
+          "discriminator": {
+            "mapping": {
+              "arc": "#/$defs/ArcEmbedding",
+              "straight": "#/$defs/StraightEmbedding"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StraightEmbedding"
+            },
+            {
+              "$ref": "#/$defs/ArcEmbedding"
+            }
+          ],
+          "title": "Embedding"
+        },
+        "jacobian": {
+          "default": "1",
+          "title": "Jacobian",
+          "type": "string"
+        }
+      },
+      "title": "Domain1D",
+      "type": "object"
+    },
+    "ExpressionDistribution": {
+      "additionalProperties": false,
+      "description": "Funcion arbitraria del parametro del dominio.",
+      "properties": {
+        "type": {
+          "const": "expression",
+          "default": "expression",
+          "title": "Type",
+          "type": "string"
+        },
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "ExpressionDistribution",
+      "type": "object"
+    },
+    "FullRegion": {
+      "additionalProperties": false,
+      "description": "Todo el dominio del cuerpo.",
+      "properties": {
+        "type": {
+          "const": "full",
+          "default": "full",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "FullRegion",
+      "type": "object"
+    },
+    "IntervalRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "interval",
+          "default": "interval",
+          "title": "Type",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "IntervalRegion",
+      "type": "object"
+    },
+    "LinearDistribution": {
+      "additionalProperties": false,
+      "description": "Cubre triangular y trapezoidal: es el mismo objeto matematico.",
+      "properties": {
+        "type": {
+          "const": "linear",
+          "default": "linear",
+          "title": "Type",
+          "type": "string"
+        },
+        "w_start": {
+          "title": "W Start",
+          "type": "string"
+        },
+        "w_end": {
+          "title": "W End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "w_start",
+        "w_end"
+      ],
+      "title": "LinearDistribution",
+      "type": "object"
+    },
+    "MechanicalLoad": {
+      "additionalProperties": false,
+      "description": "Carga mecanica: fuerza distribuida/puntual o par concentrado.",
+      "properties": {
+        "kind": {
+          "const": "load",
+          "default": "load",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "quantity": {
+          "default": "force",
+          "enum": [
+            "force",
+            "moment"
+          ],
+          "title": "Quantity",
+          "type": "string"
+        },
+        "region": {
+          "discriminator": {
+            "mapping": {
+              "full": "#/$defs/FullRegion",
+              "interval": "#/$defs/IntervalRegion",
+              "point": "#/$defs/PointRegion"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PointRegion"
+            },
+            {
+              "$ref": "#/$defs/IntervalRegion"
+            },
+            {
+              "$ref": "#/$defs/FullRegion"
+            }
+          ],
+          "title": "Region"
+        },
+        "distribution": {
+          "discriminator": {
+            "mapping": {
+              "expression": "#/$defs/ExpressionDistribution",
+              "linear": "#/$defs/LinearDistribution",
+              "piecewise": "#/$defs/PiecewiseDistribution",
+              "point": "#/$defs/PointDistribution",
+              "polynomial": "#/$defs/PolynomialDistribution",
+              "uniform": "#/$defs/UniformDistribution"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PointDistribution"
+            },
+            {
+              "$ref": "#/$defs/UniformDistribution"
+            },
+            {
+              "$ref": "#/$defs/LinearDistribution"
+            },
+            {
+              "$ref": "#/$defs/PolynomialDistribution"
+            },
+            {
+              "$ref": "#/$defs/ExpressionDistribution"
+            },
+            {
+              "$ref": "#/$defs/PiecewiseDistribution"
+            }
+          ],
+          "title": "Distribution"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        },
+        "units": {
+          "default": "",
+          "title": "Units",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "region",
+        "distribution"
+      ],
+      "title": "MechanicalLoad",
+      "type": "object"
+    },
+    "PiecewiseDistribution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "piecewise",
+          "default": "piecewise",
+          "title": "Type",
+          "type": "string"
+        },
+        "pieces": {
+          "items": {
+            "$ref": "#/$defs/PiecewisePiece"
+          },
+          "title": "Pieces",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pieces"
+      ],
+      "title": "PiecewiseDistribution",
+      "type": "object"
+    },
+    "PiecewisePiece": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "distribution": {
+          "discriminator": {
+            "mapping": {
+              "expression": "#/$defs/ExpressionDistribution",
+              "linear": "#/$defs/LinearDistribution",
+              "piecewise": "#/$defs/PiecewiseDistribution",
+              "point": "#/$defs/PointDistribution",
+              "polynomial": "#/$defs/PolynomialDistribution",
+              "uniform": "#/$defs/UniformDistribution"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PointDistribution"
+            },
+            {
+              "$ref": "#/$defs/UniformDistribution"
+            },
+            {
+              "$ref": "#/$defs/LinearDistribution"
+            },
+            {
+              "$ref": "#/$defs/PolynomialDistribution"
+            },
+            {
+              "$ref": "#/$defs/ExpressionDistribution"
+            },
+            {
+              "$ref": "#/$defs/PiecewiseDistribution"
+            }
+          ],
+          "title": "Distribution"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "distribution"
+      ],
+      "title": "PiecewisePiece",
+      "type": "object"
+    },
+    "Placement": {
+      "additionalProperties": false,
+      "description": "Pose en el mundo. Cambiarla NO invalida la derivacion simbolica.",
+      "properties": {
+        "origin": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin",
+          "type": "array"
+        },
+        "rotation_deg": {
+          "default": 0.0,
+          "title": "Rotation Deg",
+          "type": "number"
+        }
+      },
+      "title": "Placement",
+      "type": "object"
+    },
+    "PointDistribution": {
+      "additionalProperties": false,
+      "description": "Concentrada. Internamente es una delta, no un caso especial.",
+      "properties": {
+        "type": {
+          "const": "point",
+          "default": "point",
+          "title": "Type",
+          "type": "string"
+        },
+        "magnitude": {
+          "title": "Magnitude",
+          "type": "string"
+        }
+      },
+      "required": [
+        "magnitude"
+      ],
+      "title": "PointDistribution",
+      "type": "object"
+    },
+    "PointRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "point",
+          "default": "point",
+          "title": "Type",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at"
+      ],
+      "title": "PointRegion",
+      "type": "object"
+    },
+    "PolynomialDistribution": {
+      "additionalProperties": false,
+      "description": "``sum(coeffs[i] * (s - inicio_region)**i)``.",
+      "properties": {
+        "type": {
+          "const": "polynomial",
+          "default": "polynomial",
+          "title": "Type",
+          "type": "string"
+        },
+        "coeffs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Coeffs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "coeffs"
+      ],
+      "title": "PolynomialDistribution",
+      "type": "object"
+    },
+    "StraightEmbedding": {
+      "additionalProperties": false,
+      "description": "Recta: ``r(x) = origin + x * direction``.",
+      "properties": {
+        "type": {
+          "const": "straight",
+          "default": "straight",
+          "title": "Type",
+          "type": "string"
+        },
+        "origin": {
+          "default": [
+            "0",
+            "0",
+            "0"
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Origin",
+          "type": "array"
+        },
+        "direction": {
+          "default": [
+            "1",
+            "0",
+            "0"
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Direction",
+          "type": "array"
+        }
+      },
+      "title": "StraightEmbedding",
+      "type": "object"
+    },
+    "StructuralSupport": {
+      "additionalProperties": false,
+      "description": "Anclado a ``(body_id, at)`` en coordenada del dominio, nunca a pixeles.\n\nSi se anclara a la posicion en pantalla, mover el cuerpo en el canvas\nromperia el modelo fisico.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "body_id": {
+          "title": "Body Id",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "type": {
+          "default": "roller",
+          "enum": [
+            "pin",
+            "roller",
+            "fixed"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "body_id",
+        "at"
+      ],
+      "title": "StructuralSupport",
+      "type": "object"
+    },
+    "ThermalField": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "thermal",
+          "default": "thermal",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "T_ref": {
+          "default": "T_ref",
+          "title": "T Ref",
+          "type": "string"
+        },
+        "profile": {
+          "discriminator": {
+            "mapping": {
+              "linear_through_section": "#/$defs/ThermalProfileLinear",
+              "uniform_through_section": "#/$defs/ThermalProfileUniform"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ThermalProfileUniform"
+            },
+            {
+              "$ref": "#/$defs/ThermalProfileLinear"
+            }
+          ],
+          "title": "Profile"
+        }
+      },
+      "required": [
+        "id",
+        "profile"
+      ],
+      "title": "ThermalField",
+      "type": "object"
+    },
+    "ThermalProfileLinear": {
+      "additionalProperties": false,
+      "description": "Gradiente lineal en la seccion. Es lo que permite flexion termica.\n\nGuardar solo ``T(x)`` media hace imposible modelar curvatura termica, y\nagregarlo despues obliga a tocar el schema y todos los documentos guardados.",
+      "properties": {
+        "type": {
+          "const": "linear_through_section",
+          "default": "linear_through_section",
+          "title": "Type",
+          "type": "string"
+        },
+        "T_top": {
+          "title": "T Top",
+          "type": "string"
+        },
+        "T_bottom": {
+          "title": "T Bottom",
+          "type": "string"
+        }
+      },
+      "required": [
+        "T_top",
+        "T_bottom"
+      ],
+      "title": "ThermalProfileLinear",
+      "type": "object"
+    },
+    "ThermalProfileUniform": {
+      "additionalProperties": false,
+      "description": "Temperatura constante en la seccion, variable a lo largo del dominio.",
+      "properties": {
+        "type": {
+          "const": "uniform_through_section",
+          "default": "uniform_through_section",
+          "title": "Type",
+          "type": "string"
+        },
+        "T": {
+          "title": "T",
+          "type": "string"
+        }
+      },
+      "required": [
+        "T"
+      ],
+      "title": "ThermalProfileUniform",
+      "type": "object"
+    },
+    "UniformDistribution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "uniform",
+          "default": "uniform",
+          "title": "Type",
+          "type": "string"
+        },
+        "w": {
+          "title": "W",
+          "type": "string"
+        }
+      },
+      "required": [
+        "w"
+      ],
+      "title": "UniformDistribution",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Etapa 1: el modelo fisico.",
+  "properties": {
+    "module": {
+      "default": "statics",
+      "enum": [
+        "statics",
+        "em",
+        "thermo"
+      ],
+      "title": "Module",
+      "type": "string"
+    },
+    "title": {
+      "default": "Problema sin titulo",
+      "title": "Title",
+      "type": "string"
+    },
+    "bodies": {
+      "items": {
+        "$ref": "#/$defs/Body"
+      },
+      "title": "Bodies",
+      "type": "array"
+    },
+    "supports": {
+      "items": {
+        "$ref": "#/$defs/StructuralSupport"
+      },
+      "title": "Supports",
+      "type": "array"
+    }
+  },
+  "title": "ProblemModel",
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -78,6 +78,54 @@ def couple_term(magnitude: sp.Expr, x: sp.Symbol, at: sp.Expr) -> sp.Expr:
     return -sp.sympify(magnitude) * SF(x, sp.sympify(at), -2)
 
 
+def resolve_piecewise(expr: sp.Expr) -> sp.Expr:
+    """Elimina las ramas degeneradas que SymPy agrega al integrar.
+
+    ``integrate(sin(pi*x/L), x)`` devuelve un ``Piecewise`` que se cubre del
+    caso ``pi/L = 0``, es decir de una barra de longitud infinita. En un modelo
+    fisico los simbolos de geometria son positivos y finitos, asi que se elige
+    la rama generica. Sin esto la expresion no se puede imprimir a JavaScript.
+    """
+    def _pick(node: sp.Expr) -> sp.Expr:
+        subs = {sym: sp.Dummy(positive=True, finite=True) for sym in node.free_symbols}
+        for value, condition in node.args:
+            if condition is sp.true:
+                return value
+            probe = sp.simplify(condition.subs(subs))
+            if probe is sp.true or probe == True:  # noqa: E712 - SymPy Boolean
+                return value
+        return node
+
+    return sp.sympify(expr).replace(lambda n: isinstance(n, sp.Piecewise), _pick)
+
+
+def _integrate_term(term: sp.Expr, x: sp.Symbol) -> sp.Expr:
+    """Primitiva de un termino que se anula a la izquierda de su soporte."""
+    heavisides = [f for f in sp.Mul.make_args(term) if isinstance(f, sp.Heaviside)]
+
+    if len(heavisides) != 1:
+        # Funciones de singularidad y terminos lisos: SymPy los integra directo.
+        return resolve_piecewise(sp.integrate(term, x))
+
+    # Un termino ventaneado g(x)*H(x - c). Integrar el producto contra el
+    # escalon manda a SymPy a funciones de Meijer G, que ademas de lentas no
+    # se pueden imprimir a JavaScript. La primitiva correcta es elemental:
+    #
+    #     int_0^x g(s) H(s - c) ds = (G(x) - G(c)) * H(x - c)
+    #
+    # Se integra g sola y se vuelve a aplicar la ventana. Ademas el resultado
+    # tiene otra vez la forma g*H, asi que integrar de nuevo funciona igual.
+    step = heavisides[0]
+    inner = sp.solve(step.args[0], x)
+    if len(inner) != 1:  # pragma: no cover - defensivo
+        return resolve_piecewise(sp.integrate(term, x))
+    c = inner[0]
+
+    g = sp.Mul(*[f for f in sp.Mul.make_args(term) if f is not step])
+    G = resolve_piecewise(sp.integrate(g, x))
+    return sp.expand((G - G.subs(x, c)) * step)
+
+
 def antiderivative(expr: sp.Expr, x: sp.Symbol) -> sp.Expr:
     """Primitiva que se anula a la izquierda de todo el dominio.
 
@@ -85,7 +133,7 @@ def antiderivative(expr: sp.Expr, x: sp.Symbol) -> sp.Expr:
     completa, que es donde se cuelga con modelos grandes.
     """
     terms = sp.Add.make_args(sp.expand(expr))
-    return sp.Add(*[sp.integrate(t, x) for t in terms])
+    return sp.Add(*[_integrate_term(t, x) for t in terms])
 
 
 def activate(expr: sp.Expr, x: sp.Symbol, at: sp.Expr) -> sp.Expr:
