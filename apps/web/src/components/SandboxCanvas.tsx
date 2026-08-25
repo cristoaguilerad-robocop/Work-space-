@@ -244,6 +244,24 @@ export function SandboxCanvas({
       {body.loads.filter((l) => l.kind === 'point').map((load) => {
         const at = livePx('field', load.id, 'at', value(load.start.js, bindings));
         const magnitude = load.magnitude ? value(load.magnitude.js, bindings) : 1;
+
+        // Una fuerza tiene sentido de aplicacion y se dibuja como flecha. Una
+        // carga o una fuente de calor concentradas son escalares: se dibujan
+        // como lo que son, con su signo, sin insinuar una direccion.
+        if (load.quantity !== 'force') {
+          const sign = magnitude >= 0 ? '+' : '−';
+          return (
+            <g key={load.id}
+               className={`scalar-pt ${magnitude >= 0 ? 'pos' : 'neg'}${isSelected('field', load.id) ? ' sel' : ''}`}
+               onPointerDown={startDrag({ target: 'field', id: load.id, part: 'at' })}>
+              <circle cx={at} cy={BEAM_Y} r={11} />
+              <text x={at} y={BEAM_Y + 5} textAnchor="middle" className="glyph">{sign}</text>
+              <text x={at} y={BEAM_Y - 20} textAnchor="middle" className="lab">{load.label}</text>
+              <circle className="handle" cx={at} cy={BEAM_Y - 30} r={7} />
+            </g>
+          );
+        }
+
         const down = magnitude >= 0;
         const y0 = BEAM_Y - (down ? 68 : -68);
         return (

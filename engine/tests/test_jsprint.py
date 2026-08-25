@@ -7,6 +7,7 @@ generado en Node y comparando contra SymPy punto a punto.
 """
 
 import json
+import math
 import shutil
 import subprocess
 
@@ -108,7 +109,6 @@ def test_custom_expression_load_compiles_and_matches():
 
 def evaluate_ast(node, x_value, params):
     """Referencia en Python del interprete que corre en el cliente."""
-    import math
     if isinstance(node, (int, float)):
         return float(node)
     if "v" in node:
@@ -132,6 +132,15 @@ def evaluate_ast(node, x_value, params):
     if op == "hv":
         return 0.0 if args[0] < 0 else 1.0
     return getattr(math, op)(*args)
+
+
+def test_ast_covers_the_functions_electro_produces():
+    """La forma cerrada del potencial de una linea trae asinh."""
+    from wf_core.jsprint import to_ast
+    a = sp.Symbol("a")
+    tree = to_ast(sp.asinh(a / 2) + sp.sqrt(a**2 + 1))
+    got = evaluate_ast(tree, 0.0, {"a": 3.0})
+    assert abs(got - (math.asinh(1.5) + math.sqrt(10))) < 1e-12
 
 
 @pytest.mark.parametrize("name", ["V", "M", "theta", "y"])

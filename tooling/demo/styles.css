@@ -417,3 +417,88 @@ main { padding: var(--gap); max-width: 1500px; margin: 0 auto; }
 
 .katex { font-size: 1em; }
 .katex-display { margin: 0; }
+
+/* ---------------------------------------------------- modulos y sandbox */
+
+.tb-modules { gap: 5px; }
+.modules { display: flex; gap: 2px; }
+.modules button {
+  padding: 3px 12px;
+  font-size: 12px;
+  background: var(--plate-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.modules button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.modules button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+
+.case-group + .case-group { margin-top: 18px; }
+.case-group h3 {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.canvas.draggable { touch-action: none; }
+.canvas .grab {
+  fill: var(--plate);
+  stroke: var(--moment);
+  stroke-width: 2.5;
+  cursor: grab;
+}
+.canvas .grab:active { cursor: grabbing; fill: var(--moment); }
+.canvas .drag-lab {
+  fill: var(--moment);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* Fuentes escalares: mismo perfil, color del modulo, sin flechas de sentido. */
+.canvas .dist.thermo polygon { fill: color-mix(in srgb, var(--moment) 17%, transparent); }
+.canvas .dist.thermo polyline { stroke: var(--moment); }
+.canvas .dist.thermo text { fill: var(--moment); }
+.canvas .dist.em polygon { fill: color-mix(in srgb, var(--slope) 17%, transparent); }
+.canvas .dist.em polyline { stroke: var(--slope); }
+.canvas .dist.em text { fill: var(--slope); }
+.canvas .beam.thermo { stroke: var(--moment); }
+.canvas .beam.em { stroke: var(--slope); }
+
+.canvas .bc line { stroke: var(--moment); stroke-width: 2.5; }
+.canvas .bc rect { fill: var(--plate-2); stroke: var(--moment); stroke-width: 1.5; }
+.canvas .bc .glyph { fill: var(--moment); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.canvas .bc-insulated line, .canvas .bc-insulated rect { stroke: var(--muted); }
+.canvas .bc-insulated .glyph { fill: var(--muted); }
+
+.canvas .probe circle { fill: none; stroke: var(--defl); stroke-width: 2; }
+.canvas .probe .lead { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 3; }
+.canvas .probe text { fill: var(--defl); }
+
+/* -------------------------------------------------------------- mapa 2D */
+
+.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.fieldmap-tabs button { font-size: 12px; padding: 4px 11px; }
+.fieldmap-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
+canvas[data-map] {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.results .u { color: var(--muted); font-size: 10px; }
+
+/* Carga o fuente concentrada: escalar con signo, no un vector. */
+.canvas .scalar-pt circle { stroke-width: 2; }
+.canvas .scalar-pt.pos circle { fill: color-mix(in srgb, var(--slope) 22%, var(--plate)); stroke: var(--slope); }
+.canvas .scalar-pt.neg circle { fill: color-mix(in srgb, var(--moment) 22%, var(--plate)); stroke: var(--moment); }
+.canvas .scalar-pt.pos .glyph, .canvas .scalar-pt.pos text { fill: var(--slope); }
+.canvas .scalar-pt.neg .glyph, .canvas .scalar-pt.neg text { fill: var(--moment); }
+.canvas .scalar-pt .glyph { font-size: 14px; font-weight: 700; }

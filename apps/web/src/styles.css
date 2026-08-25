@@ -382,3 +382,11 @@ kbd {
 .canvas .dist.em text { fill: var(--c-slope); }
 
 .results th.sym-cell { width: 92px; }
+
+/* Carga o fuente concentrada: escalar con signo, no un vector. */
+.canvas .scalar-pt circle { stroke-width: 2; }
+.canvas .scalar-pt.pos circle { fill: color-mix(in srgb, var(--c-slope) 22%, var(--panel)); stroke: var(--c-slope); }
+.canvas .scalar-pt.neg circle { fill: color-mix(in srgb, var(--c-moment) 22%, var(--panel)); stroke: var(--c-moment); }
+.canvas .scalar-pt.pos .glyph, .canvas .scalar-pt.pos text { fill: var(--c-slope); }
+.canvas .scalar-pt.neg .glyph, .canvas .scalar-pt.neg text { fill: var(--c-moment); }
+.canvas .scalar-pt .glyph { font-size: 14px; font-weight: 700; }

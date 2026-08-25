@@ -54,9 +54,73 @@ def force(load_id, label, region, distribution, units="N/m"):
 FULL = {"type": "full"}
 
 
+def thermo(title, fields, boundaries, const=None):
+    return {
+        "module": "thermo", "title": title,
+        "bodies": [{
+            "id": "bar1", "name": "Barra", "type": "bar",
+            "domain": {"parameter": "x", "start": "0", "end": "L"},
+            "fields": fields,
+            "constitutive": const or {"k": "k", "A": "A"},
+            "analysis": {"mode": "rigid", "dof": "1d_beam"},
+        }],
+        "boundaries": boundaries,
+    }
+
+
+def heat(source_id, label, region, distribution, units="W/m"):
+    return {"kind": "source", "id": source_id, "label": label, "quantity": "heat_source",
+            "region": region, "distribution": distribution, "units": units}
+
+
+def bc(bc_id, at, kind, value=None, film=None, label=""):
+    return {"id": bc_id, "body_id": "bar1", "at": at, "type": kind,
+            "value": value, "h": film, "label": label or bc_id}
+
+
+def em(title, fields, probes, kind="charged_line"):
+    return {
+        "module": "em", "title": title,
+        "bodies": [{
+            "id": "l1", "name": "Linea", "type": kind,
+            "domain": {"parameter": "x", "start": "0", "end": "L"},
+            "fields": fields, "constitutive": {},
+            "analysis": {"mode": "rigid", "dof": "1d_beam"},
+        }],
+        "probes": probes,
+    }
+
+
+def source(source_id, label, quantity, region, distribution, units):
+    return {"kind": "source", "id": source_id, "label": label, "quantity": quantity,
+            "region": region, "distribution": distribution, "units": units}
+
+
+POINT = lambda at: {"type": "point", "at": at}
+UNIFORM = lambda w: {"type": "uniform", "w": w}
+
+
 CASES = [
+    # ---------------------------------------------------------------- Estatica
+    {
+        "id": "movil",
+        "module": "statics",
+        "name": "Carga movil — arrastrable",
+        "note": (
+            "La posicion de la carga es el simbolo 'a', asi que moverla no cambia el "
+            "planteo: solo cambia el valor de 'a'. Arrastrala en el canvas."
+        ),
+        "draggable": {"field": "P1", "symbol": "a"},
+        "model": model(
+            "Carga movil",
+            [force("P1", "Carga movil", {"type": "point", "at": "a"},
+                   {"type": "point", "magnitude": "P"}, units="N")],
+            PINNED,
+        ),
+    },
     {
         "id": "mixta",
+        "module": "statics",
         "name": "Triangular + puntual + gradiente termico",
         "note": "Tres tipos de carga distintos sobre el mismo dominio, resueltos por una sola integral.",
         "model": model(
@@ -77,30 +141,21 @@ CASES = [
         ),
     },
     {
-        "id": "uniforme",
+        "id": "uniforme", "module": "statics",
         "name": "Uniforme, simplemente apoyada",
         "note": "El caso de referencia: flecha maxima 5 w0 L^4 / (384 E I).",
         "model": model("Uniforme", [force("q1", "Carga uniforme", FULL,
                                           {"type": "uniform", "w": "w0"})], PINNED),
     },
     {
-        "id": "voladizo",
+        "id": "voladizo", "module": "statics",
         "name": "Voladizo con carga uniforme",
         "note": "Flecha en punta w0 L^4 / (8 E I), momento de empotramiento w0 L^2 / 2.",
         "model": model("Voladizo", [force("q1", "Carga uniforme", FULL,
                                           {"type": "uniform", "w": "w0"})], CANTILEVER),
     },
     {
-        "id": "voladizo-punta",
-        "name": "Voladizo con carga en punta",
-        "note": "Flecha en punta P L^3 / (3 E I).",
-        "model": model("Voladizo con puntual",
-                       [force("P1", "Carga en punta", {"type": "point", "at": "L"},
-                              {"type": "point", "magnitude": "P"}, units="N")],
-                       CANTILEVER),
-    },
-    {
-        "id": "puntual-centro",
+        "id": "puntual-centro", "module": "statics",
         "name": "Puntual centrada",
         "note": "Flecha P L^3 / (48 E I). La carga puntual sale de la misma integral que una distribuida.",
         "model": model("Puntual centrada",
@@ -108,7 +163,7 @@ CASES = [
                               {"type": "point", "magnitude": "P"}, units="N")], PINNED),
     },
     {
-        "id": "trapecio",
+        "id": "trapecio", "module": "statics",
         "name": "Trapezoidal sobre un tramo",
         "note": "Intensidad w0 -> 2 w0 aplicada solo entre L/4 y 3L/4.",
         "model": model("Trapezoidal parcial",
@@ -117,7 +172,7 @@ CASES = [
                               {"type": "linear", "w_start": "w0", "w_end": "2*w0"})], PINNED),
     },
     {
-        "id": "senoidal",
+        "id": "senoidal", "module": "statics",
         "name": "Carga custom w0 sin(pi x / L)",
         "note": "La distribucion puede ser cualquier funcion de x, no solo una forma predefinida.",
         "model": model("Carga senoidal",
@@ -125,7 +180,7 @@ CASES = [
                               {"type": "expression", "expr": "w0*sin(pi*x/L)"})], PINNED),
     },
     {
-        "id": "par",
+        "id": "par", "module": "statics",
         "name": "Par concentrado en el centro",
         "note": "El momento flector salta de +M0/2 a -M0/2 al pasar por el par.",
         "model": model("Par concentrado",
@@ -135,13 +190,93 @@ CASES = [
                          "direction": DOWN, "units": "N*m"}], PINNED),
     },
     {
-        "id": "rigido",
+        "id": "rigido", "module": "statics",
         "name": "Modo rigido: solo resultantes",
         "note": "El mismo pipeline, detenido dos integraciones antes: resultante, punto de aplicacion y equilibrio.",
         "model": model("Modo rigido",
                        [force("q1", "Carga triangular", FULL,
                               {"type": "linear", "w_start": "0", "w_end": "w0"})],
                        PINNED, mode="rigid", const={}),
+    },
+
+    # ------------------------------------------------------------------ Termo
+    {
+        "id": "pared", "module": "thermo",
+        "name": "Pared plana",
+        "note": "Sin generacion y con temperatura impuesta en las dos caras: perfil lineal.",
+        "model": thermo("Pared plana", [],
+                        [bc("I", "0", "temperature", "T1", label="Cara caliente"),
+                         bc("D", "L", "temperature", "T2", label="Cara fria")]),
+    },
+    {
+        "id": "generacion", "module": "thermo",
+        "name": "Generacion uniforme entre dos caras frias",
+        "note": "Perfil parabolico: T_max = T1 + g0 L^2 / (8 k A), en el centro.",
+        "model": thermo("Generacion uniforme",
+                        [heat("g1", "Generacion", {"type": "full"}, UNIFORM("g0"))],
+                        [bc("I", "0", "temperature", "T1"),
+                         bc("D", "L", "temperature", "T1")]),
+    },
+    {
+        "id": "conveccion", "module": "thermo",
+        "name": "Generacion con conveccion en un extremo",
+        "note": "Conduccion y conveccion en serie. El balance global de energia se verifica solo.",
+        "model": thermo("Barra con conveccion",
+                        [heat("g1", "Generacion", {"type": "full"}, UNIFORM("g0"))],
+                        [bc("I", "0", "temperature", "T1"),
+                         bc("D", "L", "convection", "T_inf", film="h_c")]),
+    },
+    {
+        "id": "aislado", "module": "thermo",
+        "name": "Fuente puntual con un extremo aislado",
+        "note": "Una fuente concentrada es una delta: sale de la misma integral que una distribuida.",
+        "model": thermo("Fuente puntual",
+                        [heat("Q1", "Fuente puntual", POINT("L/2"),
+                              {"type": "point", "magnitude": "Q0"}, units="W")],
+                        [bc("I", "0", "insulated", label="Aislado"),
+                         bc("D", "L", "temperature", "T2")]),
+    },
+
+    # ---------------------------------------------------------------- Electro
+    {
+        "id": "linea", "module": "em",
+        "name": "Linea cargada uniforme",
+        "note": "El potencial sale en forma cerrada con asinh; el campo se integra en el navegador.",
+        "model": em("Linea cargada",
+                    [source("lam1", "Densidad de carga", "charge_density",
+                            {"type": "full"}, UNIFORM("lam0"), "C/m")],
+                    [{"id": "P1", "at": ["L/2", "0.8", "0"], "label": "P1"}]),
+    },
+    {
+        "id": "dipolo", "module": "em",
+        "name": "Dos cargas puntuales opuestas",
+        "note": "Coulomb directo, sin integrar. El mapa muestra bien el cambio de signo.",
+        "model": em("Par de cargas",
+                    [source("q1", "Carga +", "charge_density", POINT("L/4"),
+                            {"type": "point", "magnitude": "q0"}, "C"),
+                     source("q2", "Carga -", "charge_density", POINT("3*L/4"),
+                            {"type": "point", "magnitude": "-q0"}, "C")],
+                    [{"id": "P1", "at": ["L/2", "0.6", "0"], "label": "P1"}]),
+    },
+    {
+        "id": "densidad-variable", "module": "em",
+        "name": "Densidad lineal variable",
+        "note": "lambda(x) de 0 a lam0. La carga total y el centroide salen de la misma integral que una viga.",
+        "model": em("Densidad variable",
+                    [source("lam1", "Densidad 0 -> lam0", "charge_density",
+                            {"type": "full"},
+                            {"type": "linear", "w_start": "0", "w_end": "lam0"}, "C/m")],
+                    [{"id": "P1", "at": ["L/2", "0.8", "0"], "label": "P1"}]),
+    },
+    {
+        "id": "conductor", "module": "em",
+        "name": "Conductor recto con corriente",
+        "note": "Biot-Savart. B_z tiene forma cerrada, y en el limite de hilo infinito tiende a 2 k_m I / r.",
+        "model": em("Conductor recto",
+                    [source("I1", "Corriente", "current", {"type": "full"},
+                            UNIFORM("I0"), "A")],
+                    [{"id": "P1", "at": ["L/2", "0.5", "0"], "label": "P1"}],
+                    kind="wire"),
     },
 ]
 
@@ -155,15 +290,16 @@ def main() -> None:
             raise SystemExit(f"{case['id']}: {payload['errors']}")
         out.append({
             "id": case["id"],
+            "module": case.get("module", "statics"),
             "name": case["name"],
             "note": case["note"],
+            "draggable": case.get("draggable"),
             "model": case["model"],
             "derived": payload,
         })
         body = payload["bodies"][0]
-        print(f"  {case['id']:16s} {len(body['equations']):2d} ec  "
-              f"{len(body['steps']):2d} pasos  "
-              f"{', '.join(body['reactions'])}")
+        print(f"  {case['module']:8s} {case['id']:20s} "
+              f"{len(body['equations']):2d} ec  {len(body['steps']):2d} pasos")
 
     target = ROOT / "tooling" / "demo" / "payloads.json"
     target.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))

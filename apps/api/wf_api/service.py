@@ -35,7 +35,13 @@ def _packaged(expr: sp.Expr, variable: sp.Symbol, *, emit_ast: bool = False) -> 
         "js": compile_function(expr, variable),
     }
     if emit_ast:
-        out["ast"] = to_ast(expr)
+        try:
+            out["ast"] = to_ast(expr)
+        except TypeError:
+            # Una expresion que el AST no representa no es un error fatal: el
+            # cliente que necesita el arbol solo evalua integrandos, y una
+            # forma cerrada exotica ahi solo se muestra escrita.
+            out["ast"] = None
     return out
 
 

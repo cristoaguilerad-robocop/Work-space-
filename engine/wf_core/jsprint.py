@@ -67,6 +67,7 @@ _AST_FUNCTIONS = {
     "sin": "sin", "cos": "cos", "tan": "tan",
     "asin": "asin", "acos": "acos", "atan": "atan",
     "sinh": "sinh", "cosh": "cosh", "tanh": "tanh",
+    "asinh": "asinh", "acosh": "acosh", "atanh": "atanh",
     "exp": "exp", "log": "log", "Abs": "abs",
 }
 
