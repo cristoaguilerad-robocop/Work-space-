@@ -17,6 +17,7 @@ from . import singularity as sg
 from .expressions import ExpressionError, parse
 from .model import (
     Body,
+    ScalarSource,
     Domain1D,
     FullRegion,
     IntervalRegion,
@@ -51,7 +52,10 @@ class BodyLoading:
     #: Densidad axial total.
     q_axial: sp.Expr = sp.S.Zero
     thermal: ThermalTerms | None = None
-    #: Aporte transversal desglosado por id de carga (para la UI y la traza).
+    #: Densidades escalares por magnitud: generacion de calor, densidad de
+    #: carga, corriente. Salen del mismo canonicalizador que las mecanicas.
+    sources: dict[str, sp.Expr] = field(default_factory=dict)
+    #: Aporte desglosado por id de campo, para la UI y la traza.
     by_load: dict[str, sp.Expr] = field(default_factory=dict)
 
 
@@ -121,7 +125,7 @@ def _profile_expr(dist, x: sp.Symbol, a: sp.Expr, b: sp.Expr) -> sp.Expr:
     raise ExpressionError(f"distribucion continua desconocida: {t!r}")
 
 
-def density_of(load: MechanicalLoad, domain: Domain1D) -> sp.Expr:
+def density_of(load: MechanicalLoad | ScalarSource, domain: Domain1D) -> sp.Expr:
     """Densidad canonica escalar de una carga, sin proyectar direccion.
 
     El resultado es siempre una expresion en el parametro del dominio, valida
@@ -131,7 +135,7 @@ def density_of(load: MechanicalLoad, domain: Domain1D) -> sp.Expr:
     x = sp.Symbol(domain.parameter)
     dist = load.distribution
 
-    if load.quantity == "moment":
+    if getattr(load, "quantity", None) == "moment":
         if not isinstance(load.region, PointRegion):
             raise ExpressionError(f"el par {load.id!r} debe aplicarse en un punto")
         if not isinstance(dist, PointDistribution):
@@ -214,6 +218,17 @@ def assemble(body: Body) -> BodyLoading:
             loading.thermal = thermal_terms(spec, body)
             continue
 
+        if isinstance(spec, ScalarSource):
+            # Una fuente escalar no tiene direccion que proyectar: la densidad
+            # canonica ES el campo. Todo lo demas -- puntual, distribuida,
+            # custom -- ya lo resolvio el canonicalizador.
+            q = density_of(spec, domain)
+            loading.sources[spec.quantity] = (
+                loading.sources.get(spec.quantity, sp.S.Zero) + q
+            )
+            loading.by_load[spec.id] = q
+            continue
+
         q = density_of(spec, domain)
         if spec.quantity == "moment":
             loading.q_transverse += q
@@ -228,6 +243,7 @@ def assemble(body: Body) -> BodyLoading:
 
     loading.q_transverse = sp.expand(loading.q_transverse)
     loading.q_axial = sp.expand(loading.q_axial)
+    loading.sources = {k: sp.expand(v) for k, v in loading.sources.items()}
     return loading
 
 

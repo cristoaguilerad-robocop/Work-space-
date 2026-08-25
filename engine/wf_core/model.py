@@ -216,7 +216,28 @@ class ThermalField(_Base):
     profile: ThermalProfile
 
 
-BodyField = Annotated[Union[MechanicalLoad, ThermalField], Field(discriminator="kind")]
+class ScalarSource(_Base):
+    """Fuente escalar distribuida sobre el dominio.
+
+    Es la misma idea que :class:`MechanicalLoad` sin direccion: generacion de
+    calor por unidad de longitud, densidad lineal de carga o corriente. Comparte
+    ``region`` y ``distribution``, asi que hereda gratis todo el catalogo de
+    formas -- incluida la puntual, que aca es una carga puntual o una fuente
+    concentrada, y la expresion custom.
+    """
+
+    kind: Literal["source"] = "source"
+    id: str
+    label: str = ""
+    quantity: Literal["heat_source", "charge_density", "current"]
+    region: Region
+    distribution: Distribution
+    units: str = ""
+
+
+BodyField = Annotated[
+    Union[MechanicalLoad, ThermalField, ScalarSource], Field(discriminator="kind")
+]
 
 
 # --------------------------------------------------------------------------
@@ -233,8 +254,10 @@ class Constitutive(_Base):
     alpha: Expr | None = None
     #: Altura de la seccion, necesaria para la curvatura termica.
     h: Expr | None = None
-    k: Expr | None = None          # conductividad (Termo)
+    k: Expr | None = None          # conductividad termica (Termo)
     rho: Expr | None = None
+    #: Permitividad relativa del medio (Electro).
+    epsilon_r: Expr | None = None
 
 
 class Analysis(_Base):
@@ -252,7 +275,7 @@ class Placement(_Base):
 class Body(_Base):
     id: str
     name: str = ""
-    type: Literal["beam", "bar", "cable", "disc"] = "beam"
+    type: Literal["beam", "bar", "cable", "disc", "charged_line", "wire"] = "beam"
     placement: Placement = Field(default_factory=Placement)
     domain: Domain1D = Field(default_factory=Domain1D)
     fields: list[BodyField] = Field(default_factory=list)
@@ -282,6 +305,36 @@ class StructuralSupport(_Base):
 # Problema
 # --------------------------------------------------------------------------
 
+class BoundaryCondition(_Base):
+    """Condicion de borde de un campo escalar, anclada por coordenada del dominio.
+
+    Es el analogo termico de :class:`StructuralSupport`: dice que sabemos en un
+    extremo del cuerpo. Igual que aquel, se ancla al dominio y no a pixeles.
+    """
+
+    id: str
+    body_id: str
+    at: Expr
+    type: Literal["temperature", "flux", "convection", "insulated"] = "temperature"
+    #: Temperatura impuesta, flujo impuesto, o temperatura ambiente si es conveccion.
+    value: Expr | None = None
+    #: Coeficiente de pelicula, solo para conveccion.
+    h: Expr | None = None
+    label: str = ""
+
+
+class Probe(_Base):
+    """Punto del espacio donde se pide el valor de un campo.
+
+    En Electro es el punto de observacion donde se evalua el potencial y el
+    campo electrico. No pertenece a ningun cuerpo: vive en el mundo.
+    """
+
+    id: str
+    at: tuple[Expr, Expr, Expr] = ("0", "1", "0")
+    label: str = ""
+
+
 class ProblemModel(_Base):
     """Etapa 1: el modelo fisico."""
 
@@ -289,6 +342,8 @@ class ProblemModel(_Base):
     title: str = "Problema sin titulo"
     bodies: list[Body] = Field(default_factory=list)
     supports: list[StructuralSupport] = Field(default_factory=list)
+    boundaries: list[BoundaryCondition] = Field(default_factory=list)
+    probes: list[Probe] = Field(default_factory=list)
 
     def body(self, body_id: str) -> Body:
         for b in self.bodies:
@@ -298,6 +353,9 @@ class ProblemModel(_Base):
 
     def supports_for(self, body_id: str) -> list[StructuralSupport]:
         return [s for s in self.supports if s.body_id == body_id]
+
+    def boundaries_for(self, body_id: str) -> list[BoundaryCondition]:
+        return [b for b in self.boundaries if b.body_id == body_id]
 
     def free_symbols(self) -> set[str]:
         """Simbolos que el usuario debera valorizar en la etapa 3.
@@ -338,4 +396,10 @@ class ProblemModel(_Base):
             scan(b.constitutive)
         for s in self.supports:
             scan(s.at)
+        for bc in self.boundaries:
+            scan(bc.at)
+            scan(bc.value)
+            scan(bc.h)
+        for probe in self.probes:
+            scan(probe.at)
         return names - params
