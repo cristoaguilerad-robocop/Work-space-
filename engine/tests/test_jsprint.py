@@ -102,3 +102,45 @@ def test_custom_expression_load_compiles_and_matches():
     assert sp.simplify(sol.reactions["R_A"] - sp.Symbol("w0") * sp.Symbol("L") / sp.pi) == 0
     for name in ("V", "M", "y"):
         assert_matches(sol.functions[name])
+
+
+# ---------------------------------------------------------------- AST
+
+def evaluate_ast(node, x_value, params):
+    """Referencia en Python del interprete que corre en el cliente."""
+    import math
+    if isinstance(node, (int, float)):
+        return float(node)
+    if "v" in node:
+        return x_value if node["v"] == "x" else params[node["v"]]
+    args = [evaluate_ast(a, x_value, params) for a in node["a"]]
+    op = node["f"]
+    if op == "+":
+        return sum(args)
+    if op == "*":
+        out = 1.0
+        for a in args:
+            out *= a
+        return out
+    if op == "^":
+        return args[0] ** args[1]
+    if op == "sf":
+        xv, a, n = args
+        if n < 0 or xv < a:
+            return 0.0
+        return 1.0 if n == 0 else (xv - a) ** n
+    if op == "hv":
+        return 0.0 if args[0] < 0 else 1.0
+    return getattr(math, op)(*args)
+
+
+@pytest.mark.parametrize("name", ["V", "M", "theta", "y"])
+def test_ast_matches_sympy(mixed_beam, name):
+    """El AST tiene que dar lo mismo que el codigo compilado y que SymPy."""
+    from wf_core.jsprint import to_ast
+    expr = mixed_beam.functions[name]
+    tree = to_ast(expr)
+    expected = in_sympy(expr, VALUES)
+    for sample, want in zip(SAMPLES, expected):
+        got = evaluate_ast(tree, sample, VALUES)
+        assert abs(got - want) <= 1e-9 * max(1.0, abs(want)), f"x={sample}"

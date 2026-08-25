@@ -56,3 +56,55 @@ def compile_function(expr: sp.Expr, variable: sp.Symbol) -> dict:
         "params": params,
         "source": to_js(expr),
     }
+
+
+# --------------------------------------------------------------------------
+# Serializacion a AST, para entornos donde no se puede compilar codigo
+# --------------------------------------------------------------------------
+
+#: Funciones de una expresion que el evaluador del cliente sabe resolver.
+_AST_FUNCTIONS = {
+    "sin": "sin", "cos": "cos", "tan": "tan",
+    "asin": "asin", "acos": "acos", "atan": "atan",
+    "sinh": "sinh", "cosh": "cosh", "tanh": "tanh",
+    "exp": "exp", "log": "log", "Abs": "abs",
+}
+
+
+class UnsupportedNode(TypeError):
+    """La expresion tiene un nodo que el AST del cliente no representa."""
+
+
+def to_ast(expr: sp.Expr) -> object:
+    """Serializa una expresion a JSON evaluable sin compilar codigo.
+
+    ``to_js`` produce codigo que hay que pasar por ``new Function``, y hay
+    entornos (paginas con Content-Security-Policy estricta) donde eso esta
+    prohibido. El mismo arbol serializado se puede recorrer con un interprete
+    chico, sin ``eval`` de por medio.
+
+    Formato: los numeros son numeros; ``{"v": nombre}`` es un simbolo;
+    ``{"f": op, "a": [...]}`` es una aplicacion.
+    """
+    e = sp.sympify(expr)
+
+    if e.is_Number or isinstance(e, sp.NumberSymbol):
+        return float(e)
+    if e.is_Symbol:
+        return {"v": e.name}
+    if isinstance(e, sp.SingularityFunction):
+        return {"f": "sf", "a": [to_ast(arg) for arg in e.args]}
+    if isinstance(e, sp.Heaviside):
+        return {"f": "hv", "a": [to_ast(e.args[0])]}
+    if e.is_Add:
+        return {"f": "+", "a": [to_ast(arg) for arg in e.args]}
+    if e.is_Mul:
+        return {"f": "*", "a": [to_ast(arg) for arg in e.args]}
+    if e.is_Pow:
+        return {"f": "^", "a": [to_ast(e.base), to_ast(e.exp)]}
+
+    name = type(e).__name__
+    if name in _AST_FUNCTIONS:
+        return {"f": _AST_FUNCTIONS[name], "a": [to_ast(arg) for arg in e.args]}
+
+    raise UnsupportedNode(f"no se puede serializar {name}: {e}")
