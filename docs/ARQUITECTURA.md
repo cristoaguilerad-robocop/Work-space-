@@ -134,12 +134,29 @@ fuerza lleva flecha porque tiene sentido de aplicacion; una densidad de carga o
 una generacion de calor se dibujan con su signo, porque son escalares y una
 flecha insinuaria una direccion que el modelo no tiene.
 
-## 7. Deuda conocida y proximos pasos
+## 7. Los mapas de campo
+
+El mapa 2D y la superficie 3D salen de **la misma grilla**: lo unico que cambia
+es la proyeccion. La superficie se dibuja de atras hacia adelante (algoritmo
+del pintor), que en una malla regular vista desde fuera siempre alcanza y evita
+llevar un z-buffer; no hay ninguna dependencia de 3D.
+
+Dos decisiones de lectura, no de estetica:
+
+- Los limites se recortan a los percentiles 4 y 96. Cerca de una carga puntual
+  el campo diverge, y un solo pixel enorme deja plano todo el resto.
+- La escala de color es divergente solo si el campo cambia de signo dentro de
+  la vista. Si no cambia, una divergente pinta todo del mismo lado y no se lee;
+  ahi va una secuencial. La altura sigue el mismo criterio: con cambio de signo
+  el cero queda en el medio porque la altura tiene que decir de que lado esta
+  cada punto; sin cambio de signo eso solo desperdicia medio lienzo.
+
+## 8. Deuda conocida y proximos pasos
 
 **Hecho** — Termo (conduccion 1D) y Electro (lineas cargadas, Biot-Savart,
 mapa 2D), sobre el mismo nucleo. Canvas editable en los tres modulos.
 
-**Proximo** — multi-cuerpo y conexiones; vista 3D; dominios
+**Proximo** — multi-cuerpo y conexiones; dominios
 curvos en Electro (el `Domain` ya lleva el jacobiano explicito y el
 discriminador `kind`, pero `ArcEmbedding` todavia no tiene marco local).
 

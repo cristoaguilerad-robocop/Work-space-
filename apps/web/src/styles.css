@@ -355,7 +355,7 @@ kbd {
 /* ---------------------------------------------------------------- mapa 2D */
 
 .fieldmap { display: grid; gap: 10px; }
-.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .fieldmap-tabs button { font-size: 12px; padding: 4px 11px; }
 .fieldmap-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .fieldmap canvas {
@@ -393,3 +393,7 @@ kbd {
 
 /* El cable se dibuja como la curva que resuelve el problema, no como recta. */
 .canvas .cable { fill: none; stroke: var(--c-defl); stroke-width: 3.5; stroke-linecap: round; }
+
+.fieldmap-modes { display: inline-flex; gap: 2px; margin-left: auto; }
+.fieldmap canvas.surface { cursor: grab; touch-action: none; }
+.fieldmap canvas.surface:active { cursor: grabbing; }

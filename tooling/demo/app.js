@@ -123,6 +123,7 @@
     caseId: CASES[0].id,
     stage: 1,
     mapField: 'V',
+    mapMode: '2d',
     bindings: Object.fromEntries(CASES.map((c) => [
       c.id, Object.fromEntries(c.derived.symbols.map((s) => [s.name, s.value])),
     ])),
@@ -480,9 +481,56 @@
     return root;
   }
 
+  // ---------------------------------------------------------- superficie 3D
+  //
+  // Misma grilla que el mapa 2D: lo unico que cambia es como se proyecta. Se
+  // dibuja de atras hacia adelante (algoritmo del pintor), que en una malla
+  // regular vista desde fuera siempre alcanza y evita llevar un z-buffer.
+
+  const DEFAULT_VIEW = { yaw: -0.62, pitch: 0.62 };
+  const view = { ...DEFAULT_VIEW };
+
+  function project(u, v, h, width, height) {
+    const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
+    const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+    const rx = u * cy - v * sy;
+    const ry = u * sy + v * cy;
+    return {
+      x: width / 2 + rx * width * 0.46,
+      y: height * 0.55 - ry * cp * height * 0.26 - h * height * 0.26,
+      depth: ry * cp - h * sp,
+    };
+  }
+
+  /**
+   * Altura normalizada. Si el campo cambia de signo el cero queda en el medio,
+   * porque la altura tiene que decir de que lado esta cada punto. Si no cambia
+   * de signo eso solo desperdicia medio lienzo y la superficie se estira.
+   */
+  function heightsOf(values, low, high, diverging) {
+    const span = Math.max(Math.abs(low), Math.abs(high)) || 1;
+    const out = new Float64Array(values.length);
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < values.length; i += 1) {
+      const v = values[i];
+      if (!Number.isFinite(v)) { out[i] = 0; continue; }
+      const t = Math.max(-1, Math.min(1, v / span));
+      const eased = Math.sign(t) * Math.pow(Math.abs(t), 0.45);
+      out[i] = eased;
+      if (eased < min) min = eased;
+      if (eased > max) max = eased;
+    }
+    if (diverging || !Number.isFinite(min) || max - min < 1e-9) return out;
+    const scale = 1.8 / (max - min);
+    for (let i = 0; i < out.length; i += 1) out[i] = (out[i] - min) * scale - 0.9;
+    return out;
+  }
+
   // -------------------------------------------------------------- mapa 2D
 
   const GRID_W = 150, GRID_H = 95, PIXEL = 4;
+  /** La malla 3D va mas gruesa: cada celda es un poligono, no un pixel. */
+  const GRID3_W = 56, GRID3_H = 40;
 
   const MAP_FIELDS = [
     { key: 'V', label: 'Potencial V', units: 'V' },
@@ -496,16 +544,20 @@
     const setup = b.field_setups[key];
     if (!setup) return null;
 
+    const three = state.mapMode === '3d';
+    const cols = three ? GRID3_W : GRID_W;
+    const rows = three ? GRID3_H : GRID_H;
+
     const L = val(b.length, bd) || 1;
     const bounds = { x0: -0.6 * L, x1: 1.6 * L, y0: -0.75 * L, y1: 0.75 * L };
     const context = canvas.getContext('2d');
 
-    const values = new Float64Array(GRID_W * GRID_H);
-    for (let row = 0; row < GRID_H; row += 1) {
-      const py = bounds.y1 - ((row + 0.5) / GRID_H) * (bounds.y1 - bounds.y0);
-      for (let col = 0; col < GRID_W; col += 1) {
-        const px = bounds.x0 + ((col + 0.5) / GRID_W) * (bounds.x1 - bounds.x0);
-        values[row * GRID_W + col] = fieldAt(setup, bd, { px, py, pz: 0 }, MAP_STEPS);
+    const values = new Float64Array(cols * rows);
+    for (let row = 0; row < rows; row += 1) {
+      const py = bounds.y1 - ((row + 0.5) / rows) * (bounds.y1 - bounds.y0);
+      for (let col = 0; col < cols; col += 1) {
+        const px = bounds.x0 + ((col + 0.5) / cols) * (bounds.x1 - bounds.x0);
+        values[row * cols + col] = fieldAt(setup, bd, { px, py, pz: 0 }, MAP_STEPS);
       }
     }
 
@@ -515,8 +567,71 @@
     const at = (q) => finite[Math.min(finite.length - 1, Math.floor(finite.length * q))] ?? 0;
     const low = at(0.04), high = at(0.96);
     const diverging = low < 0 && high > 0;
+    const range = { min: finite[0] ?? 0, max: finite[finite.length - 1] ?? 0 };
 
-    const image = context.createImageData(GRID_W, GRID_H);
+    if (three) {
+      const height = heightsOf(values, low, high, diverging);
+      const ground = getComputedStyle(canvas).getPropertyValue('--plate').trim() || '#fff';
+      context.fillStyle = ground;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      const corner = (row, col) => ({
+        p: project(col / (cols - 1) - 0.5, row / (rows - 1) - 0.5,
+                   height[row * cols + col], canvas.width, canvas.height),
+        i: row * cols + col,
+      });
+
+      const quads = [];
+      for (let row = 0; row < rows - 1; row += 1) {
+        for (let col = 0; col < cols - 1; col += 1) {
+          const cs = [corner(row, col), corner(row, col + 1),
+                      corner(row + 1, col + 1), corner(row + 1, col)];
+          quads.push({
+            depth: cs.reduce((sum, c) => sum + c.p.depth, 0) / 4,
+            pts: cs.map((c) => c.p),
+            i: cs[0].i,
+          });
+        }
+      }
+      quads.sort((a, b) => b.depth - a.depth);
+
+      for (const quad of quads) {
+        const [r, g, bl] = fieldColor(values[quad.i], low, high, diverging);
+        context.fillStyle = `rgb(${r},${g},${bl})`;
+        context.strokeStyle = `rgba(${r},${g},${bl},0.85)`;
+        context.lineWidth = 0.6;
+        context.beginPath();
+        context.moveTo(quad.pts[0].x, quad.pts[0].y);
+        for (const p of quad.pts.slice(1)) context.lineTo(p.x, p.y);
+        context.closePath();
+        context.fill();
+        context.stroke();
+      }
+
+      // El cuerpo va como sombra en la base: sobre la superficie, un campo que
+      // cambia de signo lo convierte en un muro vertical donde cruza el cero,
+      // y eso se lee como error de dibujo en vez de como el dato que es.
+      let floor = Infinity;
+      for (const value of height) if (value < floor) floor = value;
+      floor = (Number.isFinite(floor) ? floor : -1) - 0.18;
+      const rowY = ((bounds.y1 - 0) / (bounds.y1 - bounds.y0)) * (rows - 1);
+      context.save();
+      context.strokeStyle = '#111';
+      context.globalAlpha = 0.45;
+      context.setLineDash([6, 4]);
+      context.lineWidth = 2.5;
+      context.beginPath();
+      for (let i = 0; i <= 2; i += 1) {
+        const u = ((i / 2) * L - bounds.x0) / (bounds.x1 - bounds.x0);
+        const p = project(u - 0.5, rowY / (rows - 1) - 0.5, floor, canvas.width, canvas.height);
+        if (i === 0) context.moveTo(p.x, p.y); else context.lineTo(p.x, p.y);
+      }
+      context.stroke();
+      context.restore();
+      return range;
+    }
+
+    const image = context.createImageData(cols, rows);
     for (let i = 0; i < values.length; i += 1) {
       const [r, g, bl] = fieldColor(values[i], low, high, diverging);
       image.data[i * 4] = r;
@@ -526,8 +641,8 @@
     }
 
     const buffer = document.createElement('canvas');
-    buffer.width = GRID_W;
-    buffer.height = GRID_H;
+    buffer.width = cols;
+    buffer.height = rows;
     buffer.getContext('2d').putImageData(image, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(buffer, 0, 0, canvas.width, canvas.height);
@@ -548,7 +663,7 @@
       context.stroke();
     }
 
-    return { min: finite[0] ?? 0, max: finite[finite.length - 1] ?? 0 };
+    return range;
   }
 
   // -------------------------------------------------------------- etapas
@@ -767,6 +882,37 @@
     }
   }
 
+  /** Lienzo del mapa, con rotacion al arrastrar cuando esta en 3D. */
+  function mapCanvas() {
+    const three = state.mapMode === '3d';
+    const canvas = el('canvas', {
+      'data-map': 'true',
+      class: three ? 'surface' : '',
+      width: (three ? GRID3_W * 3.4 : GRID_W) * PIXEL,
+      height: (three ? GRID3_H * 2.4 : GRID_H) * PIXEL,
+    });
+    if (!three) return canvas;
+
+    let last = null;
+    canvas.addEventListener('pointerdown', (event) => {
+      canvas.setPointerCapture(event.pointerId);
+      last = { x: event.clientX, y: event.clientY };
+    });
+    canvas.addEventListener('pointermove', (event) => {
+      if (!last) return;
+      view.yaw += (event.clientX - last.x) * 0.008;
+      // Se limita la inclinacion: pasando la vertical se ve desde abajo y el
+      // orden por profundidad deja de tener sentido.
+      view.pitch = Math.max(0.12, Math.min(1.45, view.pitch + (event.clientY - last.y) * 0.006));
+      last = { x: event.clientX, y: event.clientY };
+      drawFieldMap(canvas, state.mapField);
+    });
+    const release = () => { last = null; };
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointerleave', release);
+    return canvas;
+  }
+
   function stage3() {
     const c = current(), b = body(), bd = bindings();
     const L = val(b.length, bd) || 1;
@@ -818,11 +964,16 @@
     const output = c.module === 'em'
       ? el('section', { class: 'plate' },
           el('h2', {}, 'Mapa del campo'),
-          el('div', { class: 'fieldmap-tabs' }, available.map((field) => el('button', {
-            type: 'button', 'aria-pressed': state.mapField === field.key,
-            onclick: () => { state.mapField = field.key; render(); },
-          }, field.label))),
-          el('canvas', { 'data-map': 'true', width: GRID_W * PIXEL, height: GRID_H * PIXEL }),
+          el('div', { class: 'fieldmap-tabs' },
+            ...available.map((field) => el('button', {
+              type: 'button', 'aria-pressed': state.mapField === field.key,
+              onclick: () => { state.mapField = field.key; render(); },
+            }, field.label)),
+            el('span', { class: 'fieldmap-modes' }, ['2d', '3d'].map((option) => el('button', {
+              type: 'button', 'aria-pressed': state.mapMode === option,
+              onclick: () => { state.mapMode = option; render(); },
+            }, option.toUpperCase())))),
+          mapCanvas(),
           el('p', { class: 'hint', 'data-map-range': 'true' }, ''),
           el('p', { class: 'hint' },
             'La escala se recorta a los percentiles 4 y 96 para que el pico junto a una ' +

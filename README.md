@@ -71,9 +71,9 @@ Los tres modulos funcionando de punta a punta, con canvas editable.
 | Estatica: vigas isostaticas, V/M/theta/y, termico, axial | listo |
 | **Cables**: forma, tension horizontal, tensiones en apoyos, longitud | listo |
 | Termo: conduccion 1D, generacion, T fija / flujo / conveccion / aislado | listo |
-| Electro: linea cargada, cargas puntuales, Biot-Savart, mapa 2D de campo | listo |
+| Electro: linea cargada, cargas puntuales, Biot-Savart | listo |
+| **Mapas 2D y superficie 3D** del campo, girables | listo |
 | Etapas 1-2-3 con autoguardado y overlays | listo |
-| Vista 3D | pendiente |
 | **Hiperestaticos** por compatibilidad de desplazamientos | listo |
 | Multi-cuerpo y conexiones | pendiente (se detectan y se reportan) |
 
@@ -161,8 +161,13 @@ re-deriva nada.
    y condiciones de borde.
 2. **Plantear** — ecuaciones derivadas del modelo, en LaTeX, editables, con el
    desarrollo paso a paso.
-3. **Valorizar** — valores numericos y diagramas en vivo, con lo definido en
-   las etapas 1 y 2 siempre a la vista.
+3. **Valorizar** — valores numericos, diagramas y mapas en vivo, con lo
+   definido en las etapas 1 y 2 siempre a la vista.
+
+En Electro el resultado no es una curva sobre el dominio sino un campo en el
+espacio, asi que ahi la etapa 3 muestra un **mapa 2D** y una **superficie 3D**
+girable. Las dos salen de la misma grilla, integrada en el navegador con los
+integrandos que manda el motor: cambiar un valor las redibuja sin pedir nada.
 
 Volver a una etapa anterior **no destruye** el trabajo de las siguientes. Las
 etapas 2 y 3 no guardan copias de lo derivado: guardan *overlays* indexados por

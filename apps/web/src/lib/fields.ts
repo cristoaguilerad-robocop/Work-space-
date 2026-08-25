@@ -60,6 +60,11 @@ export interface FieldGrid {
   values: Float64Array;
   min: number;
   max: number;
+  /** Limites recortados por percentil, para color y altura. */
+  low: number;
+  high: number;
+  /** El campo cambia de signo dentro de la vista. */
+  diverging: boolean;
 }
 
 /**
@@ -93,8 +98,20 @@ export function fieldGrid(
     }
   }
 
-  return { width, height, values, min: Number.isFinite(min) ? min : 0,
-           max: Number.isFinite(max) ? max : 0 };
+  // Los limites por percentil y no por el extremo: cerca de una carga puntual
+  // el campo diverge, y un solo pixel enorme dejaria plano todo el resto.
+  const sorted = Array.from(values).filter(Number.isFinite).sort((a, b) => a - b);
+  const percentile = (q: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? 0;
+  const low = percentile(0.04);
+  const high = percentile(0.96);
+
+  return {
+    width, height, values,
+    min: Number.isFinite(min) ? min : 0,
+    max: Number.isFinite(max) ? max : 0,
+    low, high, diverging: low < 0 && high > 0,
+  };
 }
 
 /**
