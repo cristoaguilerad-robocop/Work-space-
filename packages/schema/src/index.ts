@@ -41,12 +41,37 @@ export interface DerivedEquation {
   unknowns: string[];
 }
 
+/** Una carga tal como la dibuja el canvas, con su perfil ya compilado. */
+export interface DerivedLoad {
+  id: string;
+  label: string;
+  quantity: string;
+  kind: 'distributed' | 'point' | 'couple' | 'thermal';
+  units?: string;
+  start: Packaged;
+  end: Packaged;
+  /** Densidad canonica, solo para cargas distribuidas. */
+  profile?: Packaged;
+  /** Magnitud, solo para cargas puntuales y pares. */
+  magnitude?: Packaged;
+}
+
+export interface DerivedSupport {
+  id: string;
+  type: 'pin' | 'roller' | 'fixed';
+  at: Packaged;
+}
+
 export interface DerivedBody {
   body_id: string;
   name: string;
   mode: 'rigid' | 'deformable';
   parameter: string;
   domain_end: string;
+  /** Longitud del dominio, evaluable con los valores de la etapa 3. */
+  length: Packaged;
+  loads: DerivedLoad[];
+  supports: DerivedSupport[];
   reactions: Record<string, Packaged>;
   functions: Record<string, Packaged>;
   scalars: Record<string, Packaged>;
@@ -58,6 +83,8 @@ export interface DerivedBody {
 
 export interface SymbolSuggestion {
   name: string;
+  /** El nombre escrito en LaTeX (`alpha` -> `\alpha`, `T_ref` -> `T_{ref}`). */
+  latex: string;
   value: number;
   units: string;
   description: string;

@@ -6,6 +6,8 @@ antes de ver nada. Estas sugerencias son solo un punto de partida editable.
 
 from __future__ import annotations
 
+import sympy as sp
+
 #: (valor, unidad, descripcion) por nombre de simbolo.
 SUGGESTIONS: dict[str, tuple[float, str, str]] = {
     "L": (4.0, "m", "Longitud del cuerpo"),
@@ -28,4 +30,13 @@ SUGGESTIONS: dict[str, tuple[float, str, str]] = {
 
 def suggest(name: str) -> dict:
     value, units, description = SUGGESTIONS.get(name, (1.0, "", ""))
-    return {"name": name, "value": value, "units": units, "description": description}
+    return {
+        "name": name,
+        # SymPy sabe que "alpha" se escribe \alpha y que "T_ref" lleva el
+        # subindice completo entre llaves. Mandar el nombre crudo a KaTeX
+        # renderiza "T_ref" como T_r ef.
+        "latex": sp.latex(sp.Symbol(name)),
+        "value": value,
+        "units": units,
+        "description": description,
+    }

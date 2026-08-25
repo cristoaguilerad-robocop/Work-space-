@@ -11,8 +11,10 @@ Dos decisiones que hacen la diferencia entre "en vivo" y "lento":
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
+import multiprocessing
 from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor, TimeoutError as FutureTimeout
 
@@ -47,9 +49,18 @@ def physics_hash(model: dict) -> str:
 
 
 def _pool_instance() -> ProcessPoolExecutor:
+    """Pool de derivacion, creado con contexto 'spawn'.
+
+    'spawn' y no el 'fork' que Linux usa por defecto: un worker forkeado hereda
+    el socket de escucha de uvicorn, asi que si el servidor muere y queda un
+    worker vivo, el puerto sigue ocupado por un proceso que ya no atiende nada.
+    'spawn' arranca el worker limpio, sin descriptores heredados.
+    """
     global _pool
     if _pool is None:
-        _pool = ProcessPoolExecutor(max_workers=2)
+        _pool = ProcessPoolExecutor(
+            max_workers=2, mp_context=multiprocessing.get_context("spawn")
+        )
     return _pool
 
 
@@ -85,3 +96,9 @@ def cached_derive(model_json: str, key: str, worker) -> dict:
 
 def cache_stats() -> dict:
     return {"entries": len(_cache), "capacity": _CACHE_SIZE}
+
+
+@atexit.register
+def _shutdown() -> None:
+    """Que no queden workers huerfanos cuando el servidor termina."""
+    _reset_pool()

@@ -20,7 +20,11 @@
         }
       },
       "title": "Analysis",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "dof",
+        "mode"
+      ]
     },
     "ArcEmbedding": {
       "additionalProperties": false,
@@ -66,7 +70,13 @@
         }
       },
       "title": "ArcEmbedding",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "center",
+        "radius",
+        "start_angle",
+        "type"
+      ]
     },
     "Body": {
       "additionalProperties": false,
@@ -126,7 +136,14 @@
         }
       },
       "required": [
-        "id"
+        "analysis",
+        "constitutive",
+        "domain",
+        "fields",
+        "id",
+        "name",
+        "placement",
+        "type"
       ],
       "title": "Body",
       "type": "object"
@@ -221,7 +238,16 @@
         }
       },
       "title": "Constitutive",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "A",
+        "E",
+        "I",
+        "alpha",
+        "h",
+        "k",
+        "rho"
+      ]
     },
     "Direction": {
       "additionalProperties": false,
@@ -259,7 +285,11 @@
         }
       },
       "title": "Direction",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "frame",
+        "vector"
+      ]
     },
     "Domain1D": {
       "additionalProperties": false,
@@ -311,7 +341,15 @@
         }
       },
       "title": "Domain1D",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "embedding",
+        "end",
+        "jacobian",
+        "kind",
+        "parameter",
+        "start"
+      ]
     },
     "ExpressionDistribution": {
       "additionalProperties": false,
@@ -329,7 +367,8 @@
         }
       },
       "required": [
-        "expr"
+        "expr",
+        "type"
       ],
       "title": "ExpressionDistribution",
       "type": "object"
@@ -346,7 +385,10 @@
         }
       },
       "title": "FullRegion",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "type"
+      ]
     },
     "IntervalRegion": {
       "additionalProperties": false,
@@ -367,8 +409,9 @@
         }
       },
       "required": [
+        "end",
         "start",
-        "end"
+        "type"
       ],
       "title": "IntervalRegion",
       "type": "object"
@@ -393,8 +436,9 @@
         }
       },
       "required": [
-        "w_start",
-        "w_end"
+        "type",
+        "w_end",
+        "w_start"
       ],
       "title": "LinearDistribution",
       "type": "object"
@@ -493,9 +537,14 @@
         }
       },
       "required": [
+        "direction",
+        "distribution",
         "id",
+        "kind",
+        "label",
+        "quantity",
         "region",
-        "distribution"
+        "units"
       ],
       "title": "MechanicalLoad",
       "type": "object"
@@ -518,7 +567,8 @@
         }
       },
       "required": [
-        "pieces"
+        "pieces",
+        "type"
       ],
       "title": "PiecewiseDistribution",
       "type": "object"
@@ -570,9 +620,9 @@
         }
       },
       "required": [
-        "start",
+        "distribution",
         "end",
-        "distribution"
+        "start"
       ],
       "title": "PiecewisePiece",
       "type": "object"
@@ -610,7 +660,11 @@
         }
       },
       "title": "Placement",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "origin",
+        "rotation_deg"
+      ]
     },
     "PointDistribution": {
       "additionalProperties": false,
@@ -628,7 +682,8 @@
         }
       },
       "required": [
-        "magnitude"
+        "magnitude",
+        "type"
       ],
       "title": "PointDistribution",
       "type": "object"
@@ -648,7 +703,8 @@
         }
       },
       "required": [
-        "at"
+        "at",
+        "type"
       ],
       "title": "PointRegion",
       "type": "object"
@@ -672,7 +728,8 @@
         }
       },
       "required": [
-        "coeffs"
+        "coeffs",
+        "type"
       ],
       "title": "PolynomialDistribution",
       "type": "object"
@@ -733,7 +790,12 @@
         }
       },
       "title": "StraightEmbedding",
-      "type": "object"
+      "type": "object",
+      "required": [
+        "direction",
+        "origin",
+        "type"
+      ]
     },
     "StructuralSupport": {
       "additionalProperties": false,
@@ -768,9 +830,11 @@
         }
       },
       "required": [
-        "id",
+        "at",
         "body_id",
-        "at"
+        "id",
+        "label",
+        "type"
       ],
       "title": "StructuralSupport",
       "type": "object"
@@ -818,7 +882,10 @@
         }
       },
       "required": [
+        "T_ref",
         "id",
+        "kind",
+        "label",
         "profile"
       ],
       "title": "ThermalField",
@@ -844,8 +911,9 @@
         }
       },
       "required": [
+        "T_bottom",
         "T_top",
-        "T_bottom"
+        "type"
       ],
       "title": "ThermalProfileLinear",
       "type": "object"
@@ -866,7 +934,8 @@
         }
       },
       "required": [
-        "T"
+        "T",
+        "type"
       ],
       "title": "ThermalProfileUniform",
       "type": "object"
@@ -886,6 +955,7 @@
         }
       },
       "required": [
+        "type",
         "w"
       ],
       "title": "UniformDistribution",
@@ -927,5 +997,11 @@
   },
   "title": "ProblemModel",
   "type": "object",
+  "required": [
+    "bodies",
+    "module",
+    "supports",
+    "title"
+  ],
   "$schema": "http://json-schema.org/draft-07/schema#"
 }

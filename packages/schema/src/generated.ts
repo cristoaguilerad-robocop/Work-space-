@@ -115,75 +115,75 @@ export type Supports = StructuralSupport[];
  * Etapa 1: el modelo fisico.
  */
 export interface ProblemModel {
-  module?: Module;
-  title?: Title;
-  bodies?: Bodies;
-  supports?: Supports;
+  module: Module;
+  title: Title;
+  bodies: Bodies;
+  supports: Supports;
 }
 export interface Body {
   id: Id;
-  name?: Name;
-  type?: Type;
-  placement?: Placement;
-  domain?: Domain1D;
-  fields?: Fields;
-  constitutive?: Constitutive;
-  analysis?: Analysis;
+  name: Name;
+  type: Type;
+  placement: Placement;
+  domain: Domain1D;
+  fields: Fields;
+  constitutive: Constitutive;
+  analysis: Analysis;
 }
 /**
  * Pose en el mundo. Cambiarla NO invalida la derivacion simbolica.
  */
 export interface Placement {
-  origin?: Origin;
-  rotation_deg?: RotationDeg;
+  origin: Origin;
+  rotation_deg: RotationDeg;
 }
 /**
  * Dominio parametrico de un cuerpo idealizado como curva.
  */
 export interface Domain1D {
-  kind?: Kind;
-  parameter?: Parameter;
-  start?: Start;
-  end?: End;
-  embedding?: Embedding;
-  jacobian?: Jacobian;
+  kind: Kind;
+  parameter: Parameter;
+  start: Start;
+  end: End;
+  embedding: Embedding;
+  jacobian: Jacobian;
 }
 /**
  * Recta: ``r(x) = origin + x * direction``.
  */
 export interface StraightEmbedding {
-  type?: Type1;
-  origin?: Origin1;
-  direction?: Direction;
+  type: Type1;
+  origin: Origin1;
+  direction: Direction;
 }
 /**
  * Arco de radio constante en el plano XY. Reservado para Electro/Termo.
  */
 export interface ArcEmbedding {
-  type?: Type2;
-  center?: Center;
-  radius?: Radius;
-  start_angle?: StartAngle;
+  type: Type2;
+  center: Center;
+  radius: Radius;
+  start_angle: StartAngle;
 }
 /**
  * Carga mecanica: fuerza distribuida/puntual o par concentrado.
  */
 export interface MechanicalLoad {
-  kind?: Kind1;
+  kind: Kind1;
   id: Id1;
-  label?: Label;
-  quantity?: Quantity;
+  label: Label;
+  quantity: Quantity;
   region: Region;
   distribution: Distribution;
-  direction?: Direction1;
-  units?: Units;
+  direction: Direction1;
+  units: Units;
 }
 export interface PointRegion {
-  type?: Type3;
+  type: Type3;
   at: At;
 }
 export interface IntervalRegion {
-  type?: Type4;
+  type: Type4;
   start: Start1;
   end: End1;
 }
@@ -191,24 +191,24 @@ export interface IntervalRegion {
  * Todo el dominio del cuerpo.
  */
 export interface FullRegion {
-  type?: Type5;
+  type: Type5;
 }
 /**
  * Concentrada. Internamente es una delta, no un caso especial.
  */
 export interface PointDistribution {
-  type?: Type6;
+  type: Type6;
   magnitude: Magnitude;
 }
 export interface UniformDistribution {
-  type?: Type7;
+  type: Type7;
   w: W;
 }
 /**
  * Cubre triangular y trapezoidal: es el mismo objeto matematico.
  */
 export interface LinearDistribution {
-  type?: Type8;
+  type: Type8;
   w_start: WStart;
   w_end: WEnd;
 }
@@ -216,18 +216,18 @@ export interface LinearDistribution {
  * ``sum(coeffs[i] * (s - inicio_region)**i)``.
  */
 export interface PolynomialDistribution {
-  type?: Type9;
+  type: Type9;
   coeffs: Coeffs;
 }
 /**
  * Funcion arbitraria del parametro del dominio.
  */
 export interface ExpressionDistribution {
-  type?: Type10;
+  type: Type10;
   expr: Expr;
 }
 export interface PiecewiseDistribution {
-  type?: Type11;
+  type: Type11;
   pieces: Pieces;
 }
 export interface PiecewisePiece {
@@ -236,21 +236,21 @@ export interface PiecewisePiece {
   distribution: Distribution1;
 }
 export interface Direction1 {
-  frame?: Frame;
-  vector?: Vector;
+  frame: Frame;
+  vector: Vector;
 }
 export interface ThermalField {
-  kind?: Kind2;
+  kind: Kind2;
   id: Id2;
-  label?: Label1;
-  T_ref?: TRef;
+  label: Label1;
+  T_ref: TRef;
   profile: Profile;
 }
 /**
  * Temperatura constante en la seccion, variable a lo largo del dominio.
  */
 export interface ThermalProfileUniform {
-  type?: Type12;
+  type: Type12;
   T: T;
 }
 /**
@@ -260,7 +260,7 @@ export interface ThermalProfileUniform {
  * agregarlo despues obliga a tocar el schema y todos los documentos guardados.
  */
 export interface ThermalProfileLinear {
-  type?: Type13;
+  type: Type13;
   T_top: TTop;
   T_bottom: TBottom;
 }
@@ -268,17 +268,17 @@ export interface ThermalProfileLinear {
  * Material y seccion. Todo opcional: el modo rigido no necesita nada.
  */
 export interface Constitutive {
-  E?: E;
-  I?: I;
-  A?: A;
-  alpha?: Alpha;
-  h?: H;
-  k?: K;
-  rho?: Rho;
+  E: E;
+  I: I;
+  A: A;
+  alpha: Alpha;
+  h: H;
+  k: K;
+  rho: Rho;
 }
 export interface Analysis {
-  mode?: Mode;
-  dof?: Dof;
+  mode: Mode;
+  dof: Dof;
 }
 /**
  * Anclado a ``(body_id, at)`` en coordenada del dominio, nunca a pixeles.
@@ -290,6 +290,6 @@ export interface StructuralSupport {
   id: Id3;
   body_id: BodyId;
   at: At1;
-  type?: Type14;
-  label?: Label2;
+  type: Type14;
+  label: Label2;
 }

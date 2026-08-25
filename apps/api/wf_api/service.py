@@ -97,6 +97,7 @@ def derive_body(body, supports) -> dict:
         "mode": sol.mode,
         "parameter": body.domain.parameter,
         "domain_end": sp.latex(sp.sympify(body.domain.end)),
+        "length": _packaged(sp.sympify(body.domain.end), x),
         "reactions": {
             name: _packaged(value, x) for name, value in sol.reactions.items()
         },
