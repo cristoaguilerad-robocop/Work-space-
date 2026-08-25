@@ -117,13 +117,31 @@ Ademas, cada solucion trae `V(L)` y `M(L)` como **residuos**: si las reacciones
 son correctas ambos se anulan. Es una verificacion que corre siempre y que la
 etapa 2 muestra.
 
-## 6. Deuda conocida y proximos pasos
+## 6. El canvas editable
 
-**Sprint 2** — multi-cuerpo y conexiones; hiperestaticos (por compatibilidad
-de desplazamientos, reusando la elastica que ya se calcula); vista 3D.
+Arrastrar produce una **expresion simbolica**, no un numero. Es la decision que
+sostiene todo el proyecto: el puntero se engancha a fracciones del dominio
+(`positionExpression` en `apps/web/src/lib/symbolic.ts`) y con `Alt` escribe un
+multiplo decimal, que sigue siendo simbolico en el dominio.
 
-**Sprint 3** — modulo Termo (conduccion 1D estacionaria: es el mismo pipeline
-de integracion con otra ley constitutiva); despues Electro.
+Mientras dura el arrastre el elemento se dibuja en la posicion del cursor sin
+esperar al motor. La derivacion tarda cientos de milisegundos; si el elemento
+esperara, llegaria despues del dedo.
+
+Lo que se dibuja depende de lo que la magnitud *es*, no de como se guarda: una
+fuerza lleva flecha porque tiene sentido de aplicacion; una densidad de carga o
+una generacion de calor se dibujan con su signo, porque son escalares y una
+flecha insinuaria una direccion que el modelo no tiene.
+
+## 7. Deuda conocida y proximos pasos
+
+**Hecho** — Termo (conduccion 1D) y Electro (lineas cargadas, Biot-Savart,
+mapa 2D), sobre el mismo nucleo. Canvas editable en los tres modulos.
+
+**Proximo** — multi-cuerpo y conexiones; hiperestaticos (por compatibilidad de
+desplazamientos, reusando la elastica que ya se calcula); vista 3D; dominios
+curvos en Electro (el `Domain` ya lleva el jacobiano explicito y el
+discriminador `kind`, pero `ArcEmbedding` todavia no tiene marco local).
 
 **Riesgos vigilados**
 

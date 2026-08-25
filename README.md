@@ -21,36 +21,62 @@ triangular, trapezoidal, ...  ->  combinacion lineal de los anteriores
 w0*sin(pi*x/L)                ->  ventana de Heaviside sobre la expresion
 ```
 
+Y **lo mismo vale en los tres modulos**: una fuente de calor concentrada o una
+carga electrica puntual son el mismo objeto matematico que una carga puntual en
+una viga. Por eso los tres comparten canonicalizador, integrador y traza.
+
 De ahi sale todo, con **una sola** maquinaria de integracion:
 
 ```
-R  = ∫ q dx                    resultante
-x̄  = ∫ x q dx / R              punto de aplicacion
-V(x) = ∫ q dx                  cortante
-M(x) = ∫ V dx                  momento flector
-y''  = M/(EI) + κ_T(x)         elastica, con curvatura termica
-θ, y = integrando dos veces mas
+Estatica          Termo                 Electro
+--------          -----                 -------
+R  = ∫ q dx       Q_gen = ∫ g dx        Q   = ∫ λ dx
+x̄  = ∫ x q / R    dQ/dx = g(x)          x̄   = ∫ x λ dx / Q
+V(x) = ∫ q dx     dT/dx = -Q/(kA)       V(P) = k_e ∫ λ/|P-r(x)| dx
+M(x) = ∫ V dx     2 condiciones borde   E(P) = -grad V
+y'' = M/(EI) + κ_T(x)
 ```
+
+Estatica y Termo son literalmente la misma ODE de segundo orden integrada dos
+veces con dos condiciones de borde. Electro cambia en que el resultado no vive
+sobre el dominio del cuerpo sino sobre el espacio: ahi lo exacto (carga total,
+centroide, aporte de cada carga puntual) se resuelve simbolico y la parte
+continua queda planteada como integral, con forma cerrada cuando existe y
+cuadratura en el navegador cuando no.
 
 El **modo rigido** y el **modo deformable** no son dos solvers: son el mismo
 pipeline, truncado en distinto punto.
 
 ## Estado
 
-Sprint 1 completo: modulo de Estatica, cuerpo tipo barra/viga 1D, las tres
-etapas funcionando de punta a punta.
+Los tres modulos funcionando de punta a punta, con canvas editable.
 
 | Area | Estado |
 |---|---|
 | Nucleo de cargas como funciones | listo |
-| Vigas isostaticas (simplemente apoyada, voladizo) | listo |
-| Cortante, momento, pendiente, deflexion | listo |
-| Campo termico (dilatacion + curvatura por gradiente) | listo |
-| Fuerza axial y alargamiento | listo |
+| **Canvas editable**: colocar, arrastrar y borrar | listo |
+| Estatica: vigas isostaticas, V/M/theta/y, termico, axial | listo |
+| Termo: conduccion 1D, generacion, T fija / flujo / conveccion / aislado | listo |
+| Electro: linea cargada, cargas puntuales, Biot-Savart, mapa 2D de campo | listo |
 | Etapas 1-2-3 con autoguardado y overlays | listo |
 | Vista 3D | pendiente |
-| Modulos Electro y Termo | pendiente |
-| Sistemas hiperestaticos, multi-cuerpo | pendiente (se detectan y se reportan) |
+| Multi-cuerpo, conexiones, hiperestaticos | pendiente (se detectan y se reportan) |
+
+## El sandbox
+
+El canvas no es una vista previa: es donde se arma el problema. Se elige un
+elemento de la paleta, se hace clic en el cuerpo para colocarlo, se arrastra
+para moverlo y `Supr` lo quita.
+
+**Arrastrar escribe una expresion simbolica, no un numero.** El puntero se
+engancha a fracciones del dominio -- `L/4`, `2L/3`, `3L/8` -- y con `Alt` se
+mueve libre escribiendo un multiplo decimal. Si el arrastre escribiera `2.87`
+en vez de `3*L/4`, la etapa 2 dejaria de ser un planteamiento parametrico para
+pasar a ser una cuenta, que es justo lo que esta herramienta no quiere ser.
+
+La paleta sale de un catalogo por modulo (`apps/web/src/lib/elements.ts`), asi
+que agregar un elemento nuevo es agregar una entrada: ni el canvas ni el
+inspector se tocan.
 
 ## Estructura
 
@@ -63,6 +89,8 @@ packages/
 engine/
   wf_core/    dominios, cargas como funciones, integracion simbolica
   wf_statics/ solver de vigas
+  wf_thermo/  conduccion estacionaria 1D
+  wf_em/      lineas cargadas y conductores
   tests/      casos con solucion cerrada conocida
 tooling/      generacion de tipos
 ```
@@ -114,7 +142,8 @@ re-deriva nada.
 
 ## Las tres etapas
 
-1. **Modelar** — canvas visual: cuerpo, dominio, cargas como funciones, apoyos.
+1. **Armar** — canvas editable: cuerpo, dominio, fuentes como funciones, apoyos
+   y condiciones de borde.
 2. **Plantear** — ecuaciones derivadas del modelo, en LaTeX, editables, con el
    desarrollo paso a paso.
 3. **Valorizar** — valores numericos y diagramas en vivo, con lo definido en
@@ -137,4 +166,11 @@ Eje `x` a lo largo del cuerpo, transversal `y` positivo hacia arriba.
 - `κ_T = α (T_inf − T_sup) / h`: cara inferior mas caliente, viga concava
   hacia arriba
 
-Todo esto esta validado en `engine/tests/` contra soluciones de manual.
+En Termo, `Q(x)` es la potencia que atraviesa la seccion en el sentido `+x` y
+`g(x)` la generacion por unidad de longitud. **`h` es la altura de la seccion y
+`h_c` el coeficiente de conveccion**: si compartieran nombre, poner un gradiente
+termico en una viga cambiaria en silencio la conveccion de una barra.
+
+Todo esto esta validado en `engine/tests/` contra soluciones de manual: flecha
+de viga, pared plana, generacion parabolica, resistencias en serie, limite de
+hilo infinito de Biot-Savart, y forma cerrada contra cuadratura numerica.
