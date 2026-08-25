@@ -97,4 +97,128 @@ EXAMPLES: list[dict] = [
             ],
         },
     },
+    {
+        "id": "aleta-conveccion",
+        "title": "Termo: barra con generacion y conveccion",
+        "description": (
+            "Generacion uniforme, temperatura impuesta a la izquierda y conveccion al "
+            "ambiente a la derecha. La estructura es la de una viga: dos integraciones "
+            "y dos condiciones de borde."
+        ),
+        "model": {
+            "module": "thermo",
+            "title": "Barra con generacion",
+            "bodies": [{
+                "id": "bar1", "name": "Barra", "type": "bar",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "source", "id": "g1", "label": "Generacion",
+                     "quantity": "heat_source", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "g0"}, "units": "W/m"},
+                ],
+                "constitutive": {"k": "k", "A": "A"},
+                "analysis": {"mode": "rigid", "dof": "1d_beam"},
+            }],
+            "boundaries": [
+                {"id": "I", "body_id": "bar1", "at": "0", "type": "temperature",
+                 "value": "T1", "h": None, "label": "Izquierda"},
+                {"id": "D", "body_id": "bar1", "at": "L", "type": "convection",
+                 "value": "T_inf", "h": "h_c", "label": "Derecha"},
+            ],
+        },
+    },
+    {
+        "id": "pared-plana",
+        "title": "Termo: pared plana",
+        "description": "Sin generacion, temperatura impuesta en ambas caras: perfil lineal.",
+        "model": {
+            "module": "thermo",
+            "title": "Pared plana",
+            "bodies": [{
+                "id": "bar1", "name": "Pared", "type": "bar",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [],
+                "constitutive": {"k": "k", "A": "A"},
+                "analysis": {"mode": "rigid", "dof": "1d_beam"},
+            }],
+            "boundaries": [
+                {"id": "I", "body_id": "bar1", "at": "0", "type": "temperature",
+                 "value": "T1", "h": None, "label": "Cara caliente"},
+                {"id": "D", "body_id": "bar1", "at": "L", "type": "temperature",
+                 "value": "T2", "h": None, "label": "Cara fria"},
+            ],
+        },
+    },
+    {
+        "id": "linea-cargada",
+        "title": "Electro: linea cargada uniforme",
+        "description": (
+            "Densidad lineal constante. El potencial tiene forma cerrada; el campo se "
+            "evalua por cuadratura en el navegador para dibujar el mapa."
+        ),
+        "model": {
+            "module": "em",
+            "title": "Linea cargada",
+            "bodies": [{
+                "id": "l1", "name": "Linea", "type": "charged_line",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "source", "id": "lam1", "label": "Densidad de carga",
+                     "quantity": "charge_density", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "lam0"}, "units": "C/m"},
+                ],
+                "constitutive": {},
+                "analysis": {"mode": "rigid", "dof": "1d_beam"},
+            }],
+            "probes": [{"id": "P1", "at": ["L/2", "0.8", "0"], "label": "P1"}],
+        },
+    },
+    {
+        "id": "dipolo",
+        "title": "Electro: dos cargas puntuales",
+        "description": (
+            "Dos cargas concentradas de signo opuesto. Salen de la misma maquinaria que "
+            "una densidad continua, resueltas exacto por Coulomb."
+        ),
+        "model": {
+            "module": "em",
+            "title": "Par de cargas",
+            "bodies": [{
+                "id": "l1", "name": "Eje", "type": "charged_line",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "source", "id": "q1", "label": "Carga +",
+                     "quantity": "charge_density", "region": {"type": "point", "at": "L/4"},
+                     "distribution": {"type": "point", "magnitude": "q0"}, "units": "C"},
+                    {"kind": "source", "id": "q2", "label": "Carga -",
+                     "quantity": "charge_density", "region": {"type": "point", "at": "3*L/4"},
+                     "distribution": {"type": "point", "magnitude": "-q0"}, "units": "C"},
+                ],
+                "constitutive": {},
+                "analysis": {"mode": "rigid", "dof": "1d_beam"},
+            }],
+            "probes": [{"id": "P1", "at": ["L/2", "0.6", "0"], "label": "P1"}],
+        },
+    },
+    {
+        "id": "conductor",
+        "title": "Electro: conductor con corriente",
+        "description": "Biot-Savart sobre un tramo recto. B_z tiene forma cerrada.",
+        "model": {
+            "module": "em",
+            "title": "Conductor recto",
+            "bodies": [{
+                "id": "w1", "name": "Conductor", "type": "wire",
+                "domain": {"parameter": "x", "start": "0", "end": "L"},
+                "fields": [
+                    {"kind": "source", "id": "I1", "label": "Corriente",
+                     "quantity": "current", "region": {"type": "full"},
+                     "distribution": {"type": "uniform", "w": "I0"}, "units": "A"},
+                ],
+                "constitutive": {},
+                "analysis": {"mode": "rigid", "dof": "1d_beam"},
+            }],
+            "probes": [{"id": "P1", "at": ["L/2", "0.5", "0"], "label": "P1"}],
+        },
+    },
 ]

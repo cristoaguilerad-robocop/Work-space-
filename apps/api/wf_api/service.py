@@ -11,8 +11,13 @@ import sympy as sp
 from wf_core.canonical import assemble
 from wf_core.jsprint import compile_function, to_ast
 from wf_core.model import (
-    FullRegion, IntervalRegion, MechanicalLoad, PointRegion, ProblemModel, ThermalField,
+    FullRegion, IntervalRegion, MechanicalLoad, PointRegion, ProblemModel,
+    ScalarSource, ThermalField,
 )
+from wf_em import ModelError as EmError
+from wf_em import PX, PY, PZ, solve_line
+from wf_thermo import ModelError as ThermoError
+from wf_thermo import solve_bar
 from wf_statics import ModelError, solve_beam
 
 from .defaults import suggest
@@ -55,7 +60,7 @@ def _load_descriptors(body, *, emit_ast: bool = False) -> list[dict]:
             })
             continue
 
-        assert isinstance(spec, MechanicalLoad)
+        assert isinstance(spec, (MechanicalLoad, ScalarSource))
         region = spec.region
         if isinstance(region, PointRegion):
             start = end = sp.sympify(region.at)
@@ -122,6 +127,95 @@ def derive_body(body, supports, *, emit_ast: bool = False) -> dict:
     }
 
 
+def derive_thermo_body(body, boundaries, *, emit_ast: bool = False) -> dict:
+    x = sp.Symbol(body.domain.parameter)
+    sol = solve_bar(body, boundaries)
+    return {
+        "body_id": body.id,
+        "name": body.name or body.id,
+        "module": "thermo",
+        "mode": body.analysis.mode,
+        "parameter": body.domain.parameter,
+        "domain_end": sp.latex(sp.sympify(body.domain.end)),
+        "length": _packaged(sp.sympify(body.domain.end), x, emit_ast=emit_ast),
+        "loads": _load_descriptors(body, emit_ast=emit_ast),
+        "supports": [],
+        "boundaries": [
+            {
+                "id": bc.id, "type": bc.type,
+                "at": _packaged(sp.sympify(bc.at), x, emit_ast=emit_ast),
+                "label": bc.label or bc.id,
+            }
+            for bc in boundaries
+        ],
+        "reactions": {},
+        "functions": {n: _packaged(e, x, emit_ast=emit_ast) for n, e in sol.functions.items()},
+        "scalars": {n: _packaged(e, x, emit_ast=emit_ast) for n, e in sol.scalars.items()},
+        "residuals": {k: sp.latex(v) for k, v in sol.residuals.items()},
+        "equations": sol.equations.to_list(),
+        "steps": sol.trace.to_list(),
+        "notes": sol.notes,
+    }
+
+
+def derive_em_body(body, probes, *, emit_ast: bool = False) -> dict:
+    """En Electro el resultado vive en el espacio, no sobre el dominio.
+
+    Por eso en vez de ``functions`` viaja ``field_setups``: los integrandos por
+    tramo, el aporte exacto de las cargas puntuales y la forma cerrada cuando
+    existe. El cliente los usa tanto para el valor en una sonda como para
+    barrer la grilla del mapa 2D.
+    """
+    x = sp.Symbol(body.domain.parameter)
+    sol = solve_line(body, probes)
+
+    def pack_field(setup) -> dict:
+        return {
+            "parts": [
+                {
+                    "integrand": _packaged(part.integrand, x, emit_ast=emit_ast),
+                    "start": _packaged(part.start, x, emit_ast=emit_ast),
+                    "end": _packaged(part.end, x, emit_ast=emit_ast),
+                }
+                for part in setup.parts
+            ],
+            "discrete": _packaged(setup.discrete, x, emit_ast=emit_ast),
+            "closed_form": (
+                _packaged(setup.closed_form, x, emit_ast=emit_ast)
+                if setup.closed_form is not None else None
+            ),
+        }
+
+    return {
+        "body_id": body.id,
+        "name": body.name or body.id,
+        "module": "em",
+        "kind": sol.kind,
+        "mode": body.analysis.mode,
+        "parameter": body.domain.parameter,
+        "domain_end": sp.latex(sp.sympify(body.domain.end)),
+        "length": _packaged(sp.sympify(body.domain.end), x, emit_ast=emit_ast),
+        "loads": _load_descriptors(body, emit_ast=emit_ast),
+        "supports": [],
+        "probes": [
+            {
+                "id": probe["id"], "label": probe["label"],
+                "at": [_packaged(c, x, emit_ast=emit_ast) for c in probe["at"]],
+            }
+            for probe in sol.probes
+        ],
+        "field_setups": {name: pack_field(setup) for name, setup in sol.setups.items()},
+        "observer": [PX.name, PY.name, PZ.name],
+        "reactions": {},
+        "functions": {},
+        "scalars": {n: _packaged(e, x, emit_ast=emit_ast) for n, e in sol.scalars.items()},
+        "residuals": {},
+        "equations": sol.equations.to_list(),
+        "steps": sol.trace.to_list(),
+        "notes": sol.notes,
+    }
+
+
 def derive_payload(model_json: str, *, emit_ast: bool = False) -> dict:
     """Deriva todo el problema. Un cuerpo que falla no tumba a los demas."""
     model = ProblemModel.model_validate_json(model_json)
@@ -130,14 +224,45 @@ def derive_payload(model_json: str, *, emit_ast: bool = False) -> dict:
     errors: list[dict] = []
     for body in model.bodies:
         try:
-            bodies.append(derive_body(body, model.supports_for(body.id), emit_ast=emit_ast))
-        except (ModelError, ValueError, NotImplementedError) as exc:
+            if model.module == "thermo":
+                bodies.append(derive_thermo_body(
+                    body, model.boundaries_for(body.id), emit_ast=emit_ast))
+            elif model.module == "em":
+                bodies.append(derive_em_body(body, model.probes, emit_ast=emit_ast))
+            else:
+                bodies.append(derive_body(
+                    body, model.supports_for(body.id), emit_ast=emit_ast))
+        except (ModelError, ThermoError, EmError, ValueError, NotImplementedError) as exc:
             errors.append({"body_id": body.id, "message": str(exc)})
+
+    # Las constantes fisicas no aparecen en el modelo: las introduce el motor al
+    # plantear el campo. Igual hay que poder valorizarlas, asi que se recogen de
+    # lo derivado. Las coordenadas del observador quedan fuera: no son un valor
+    # del problema, las mueve la sonda o la grilla del mapa.
+    observer = {PX.name, PY.name, PZ.name}
+
+    def packaged_params(node) -> set[str]:
+        """Parametros de cualquier expresion empaquetada dentro de ``node``."""
+        if isinstance(node, dict):
+            if "js" in node:
+                return set(node["js"]["params"])
+            return set().union(*(packaged_params(v) for v in node.values()), set())
+        if isinstance(node, list):
+            return set().union(*(packaged_params(v) for v in node), set())
+        return set()
+
+    extra: set[str] = set()
+    for derived in bodies:
+        extra |= packaged_params(derived.get("field_setups", {}))
+        extra.discard(derived.get("parameter", "x"))
+    extra -= observer
+
+    names = sorted(model.free_symbols() | extra, key=str.lower)
 
     return {
         "module": model.module,
         "title": model.title,
-        "symbols": [suggest(name) for name in sorted(model.free_symbols(), key=str.lower)],
+        "symbols": [suggest(name) for name in names],
         "bodies": bodies,
         "errors": errors,
     }

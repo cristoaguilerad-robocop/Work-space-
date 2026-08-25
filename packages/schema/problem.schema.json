@@ -96,7 +96,9 @@
             "beam",
             "bar",
             "cable",
-            "disc"
+            "disc",
+            "charged_line",
+            "wire"
           ],
           "title": "Type",
           "type": "string"
@@ -112,6 +114,7 @@
             "discriminator": {
               "mapping": {
                 "load": "#/$defs/MechanicalLoad",
+                "source": "#/$defs/ScalarSource",
                 "thermal": "#/$defs/ThermalField"
               },
               "propertyName": "kind"
@@ -122,6 +125,9 @@
               },
               {
                 "$ref": "#/$defs/ThermalField"
+              },
+              {
+                "$ref": "#/$defs/ScalarSource"
               }
             ]
           },
@@ -146,6 +152,75 @@
         "type"
       ],
       "title": "Body",
+      "type": "object"
+    },
+    "BoundaryCondition": {
+      "additionalProperties": false,
+      "description": "Condicion de borde de un campo escalar, anclada por coordenada del dominio.\n\nEs el analogo termico de :class:`StructuralSupport`: dice que sabemos en un\nextremo del cuerpo. Igual que aquel, se ancla al dominio y no a pixeles.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "body_id": {
+          "title": "Body Id",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "type": {
+          "default": "temperature",
+          "enum": [
+            "temperature",
+            "flux",
+            "convection",
+            "insulated"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "h": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "body_id",
+        "h",
+        "id",
+        "label",
+        "type",
+        "value"
+      ],
+      "title": "BoundaryCondition",
       "type": "object"
     },
     "Constitutive": {
@@ -235,6 +310,18 @@
           ],
           "default": null,
           "title": "Rho"
+        },
+        "epsilon_r": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epsilon R"
         }
       },
       "title": "Constitutive",
@@ -244,6 +331,7 @@
         "E",
         "I",
         "alpha",
+        "epsilon_r",
         "h",
         "k",
         "rho"
@@ -734,6 +822,152 @@
       "title": "PolynomialDistribution",
       "type": "object"
     },
+    "Probe": {
+      "additionalProperties": false,
+      "description": "Punto del espacio donde se pide el valor de un campo.\n\nEn Electro es el punto de observacion donde se evalua el potencial y el\ncampo electrico. No pertenece a ningun cuerpo: vive en el mundo.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "at": {
+          "default": [
+            "0",
+            "1",
+            "0"
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "At",
+          "type": "array"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "id",
+        "label"
+      ],
+      "title": "Probe",
+      "type": "object"
+    },
+    "ScalarSource": {
+      "additionalProperties": false,
+      "description": "Fuente escalar distribuida sobre el dominio.\n\nEs la misma idea que :class:`MechanicalLoad` sin direccion: generacion de\ncalor por unidad de longitud, densidad lineal de carga o corriente. Comparte\n``region`` y ``distribution``, asi que hereda gratis todo el catalogo de\nformas -- incluida la puntual, que aca es una carga puntual o una fuente\nconcentrada, y la expresion custom.",
+      "properties": {
+        "kind": {
+          "const": "source",
+          "default": "source",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "quantity": {
+          "enum": [
+            "heat_source",
+            "charge_density",
+            "current"
+          ],
+          "title": "Quantity",
+          "type": "string"
+        },
+        "region": {
+          "discriminator": {
+            "mapping": {
+              "full": "#/$defs/FullRegion",
+              "interval": "#/$defs/IntervalRegion",
+              "point": "#/$defs/PointRegion"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PointRegion"
+            },
+            {
+              "$ref": "#/$defs/IntervalRegion"
+            },
+            {
+              "$ref": "#/$defs/FullRegion"
+            }
+          ],
+          "title": "Region"
+        },
+        "distribution": {
+          "discriminator": {
+            "mapping": {
+              "expression": "#/$defs/ExpressionDistribution",
+              "linear": "#/$defs/LinearDistribution",
+              "piecewise": "#/$defs/PiecewiseDistribution",
+              "point": "#/$defs/PointDistribution",
+              "polynomial": "#/$defs/PolynomialDistribution",
+              "uniform": "#/$defs/UniformDistribution"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PointDistribution"
+            },
+            {
+              "$ref": "#/$defs/UniformDistribution"
+            },
+            {
+              "$ref": "#/$defs/LinearDistribution"
+            },
+            {
+              "$ref": "#/$defs/PolynomialDistribution"
+            },
+            {
+              "$ref": "#/$defs/ExpressionDistribution"
+            },
+            {
+              "$ref": "#/$defs/PiecewiseDistribution"
+            }
+          ],
+          "title": "Distribution"
+        },
+        "units": {
+          "default": "",
+          "title": "Units",
+          "type": "string"
+        }
+      },
+      "required": [
+        "distribution",
+        "id",
+        "kind",
+        "label",
+        "quantity",
+        "region",
+        "units"
+      ],
+      "title": "ScalarSource",
+      "type": "object"
+    },
     "StraightEmbedding": {
       "additionalProperties": false,
       "description": "Recta: ``r(x) = origin + x * direction``.",
@@ -993,13 +1227,29 @@
       },
       "title": "Supports",
       "type": "array"
+    },
+    "boundaries": {
+      "items": {
+        "$ref": "#/$defs/BoundaryCondition"
+      },
+      "title": "Boundaries",
+      "type": "array"
+    },
+    "probes": {
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Probes",
+      "type": "array"
     }
   },
   "title": "ProblemModel",
   "type": "object",
   "required": [
     "bodies",
+    "boundaries",
     "module",
+    "probes",
     "supports",
     "title"
   ],

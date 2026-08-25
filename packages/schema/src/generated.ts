@@ -4,7 +4,7 @@ export type Module = "statics" | "em" | "thermo";
 export type Title = string;
 export type Id = string;
 export type Name = string;
-export type Type = "beam" | "bar" | "cable" | "disc";
+export type Type = "beam" | "bar" | "cable" | "disc" | "charged_line" | "wire";
 /**
  * @minItems 3
  * @maxItems 3
@@ -93,7 +93,20 @@ export type T = string;
 export type Type13 = "linear_through_section";
 export type TTop = string;
 export type TBottom = string;
-export type Fields = (MechanicalLoad | ThermalField)[];
+export type Kind3 = "source";
+export type Id3 = string;
+export type Label2 = string;
+export type Quantity1 = "heat_source" | "charge_density" | "current";
+export type Region1 = PointRegion | IntervalRegion | FullRegion;
+export type Distribution2 =
+  | PointDistribution
+  | UniformDistribution
+  | LinearDistribution
+  | PolynomialDistribution
+  | ExpressionDistribution
+  | PiecewiseDistribution;
+export type Units1 = string;
+export type Fields = (MechanicalLoad | ThermalField | ScalarSource)[];
 export type E = string | null;
 export type I = string | null;
 export type A = string | null;
@@ -101,15 +114,32 @@ export type Alpha = string | null;
 export type H = string | null;
 export type K = string | null;
 export type Rho = string | null;
+export type EpsilonR = string | null;
 export type Mode = "rigid" | "deformable";
 export type Dof = "1d_beam";
 export type Bodies = Body[];
-export type Id3 = string;
+export type Id4 = string;
 export type BodyId = string;
 export type At1 = string;
 export type Type14 = "pin" | "roller" | "fixed";
-export type Label2 = string;
+export type Label3 = string;
 export type Supports = StructuralSupport[];
+export type Id5 = string;
+export type BodyId1 = string;
+export type At2 = string;
+export type Type15 = "temperature" | "flux" | "convection" | "insulated";
+export type Value = string | null;
+export type H1 = string | null;
+export type Label4 = string;
+export type Boundaries = BoundaryCondition[];
+export type Id6 = string;
+/**
+ * @minItems 3
+ * @maxItems 3
+ */
+export type At3 = [unknown, unknown, unknown];
+export type Label5 = string;
+export type Probes = Probe[];
 
 /**
  * Etapa 1: el modelo fisico.
@@ -119,6 +149,8 @@ export interface ProblemModel {
   title: Title;
   bodies: Bodies;
   supports: Supports;
+  boundaries: Boundaries;
+  probes: Probes;
 }
 export interface Body {
   id: Id;
@@ -265,6 +297,24 @@ export interface ThermalProfileLinear {
   T_bottom: TBottom;
 }
 /**
+ * Fuente escalar distribuida sobre el dominio.
+ *
+ * Es la misma idea que :class:`MechanicalLoad` sin direccion: generacion de
+ * calor por unidad de longitud, densidad lineal de carga o corriente. Comparte
+ * ``region`` y ``distribution``, asi que hereda gratis todo el catalogo de
+ * formas -- incluida la puntual, que aca es una carga puntual o una fuente
+ * concentrada, y la expresion custom.
+ */
+export interface ScalarSource {
+  kind: Kind3;
+  id: Id3;
+  label: Label2;
+  quantity: Quantity1;
+  region: Region1;
+  distribution: Distribution2;
+  units: Units1;
+}
+/**
  * Material y seccion. Todo opcional: el modo rigido no necesita nada.
  */
 export interface Constitutive {
@@ -275,6 +325,7 @@ export interface Constitutive {
   h: H;
   k: K;
   rho: Rho;
+  epsilon_r: EpsilonR;
 }
 export interface Analysis {
   mode: Mode;
@@ -287,9 +338,35 @@ export interface Analysis {
  * romperia el modelo fisico.
  */
 export interface StructuralSupport {
-  id: Id3;
+  id: Id4;
   body_id: BodyId;
   at: At1;
   type: Type14;
-  label: Label2;
+  label: Label3;
+}
+/**
+ * Condicion de borde de un campo escalar, anclada por coordenada del dominio.
+ *
+ * Es el analogo termico de :class:`StructuralSupport`: dice que sabemos en un
+ * extremo del cuerpo. Igual que aquel, se ancla al dominio y no a pixeles.
+ */
+export interface BoundaryCondition {
+  id: Id5;
+  body_id: BodyId1;
+  at: At2;
+  type: Type15;
+  value: Value;
+  h: H1;
+  label: Label4;
+}
+/**
+ * Punto del espacio donde se pide el valor de un campo.
+ *
+ * En Electro es el punto de observacion donde se evalua el potencial y el
+ * campo electrico. No pertenece a ningun cuerpo: vive en el mundo.
+ */
+export interface Probe {
+  id: Id6;
+  at: At3;
+  label: Label5;
 }

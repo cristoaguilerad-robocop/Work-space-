@@ -120,25 +120,31 @@ body {
 
 main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
-.stage { display: grid; gap: 16px; }
-.stage1 { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
-.stage1 .canvas-panel { grid-column: 1 / -1; }
+.stage, .sheet { display: grid; gap: 16px; }
 .stage3 { grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); }
 
-.panel {
+/* El sandbox: canvas y paleta a la izquierda, inspector a la derecha. */
+.cols-model { grid-template-columns: minmax(0, 1.9fr) minmax(310px, 1fr); align-items: start; }
+.stack { display: grid; gap: 16px; align-content: start; }
+
+@media (max-width: 1080px) {
+  .cols-model { grid-template-columns: 1fr; }
+}
+
+.panel, .plate {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 16px;
 }
 
-.panel h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
+.panel > h2, .plate > h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
   letter-spacing: .06em; color: var(--muted); font-weight: 600; }
 
 .panel-head { display: flex; justify-content: space-between; align-items: center; }
 .panel-head h2 { margin-bottom: 12px; }
 
-.panel.warning { border-color: var(--warn); }
+.panel.warning, .plate.warning { border-color: var(--warn); }
 .banner { padding: 10px 20px; }
 .banner.error { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 
@@ -189,25 +195,25 @@ textarea { width: 100%; min-height: 70px; font-family: ui-monospace, monospace; 
 
 .canvas { width: 100%; height: auto; display: block; }
 .canvas .beam { stroke: var(--text); stroke-width: 4; stroke-linecap: round; }
-.canvas .label { fill: var(--muted); font-size: 11px; }
-.canvas .dimension { stroke: var(--line); stroke-width: 1; stroke-dasharray: 4 4; }
+.canvas .lab { fill: var(--muted); font-size: 11px; }
+.canvas .dim { stroke: var(--line); stroke-width: 1; stroke-dasharray: 4 4; }
 .canvas .support { fill: var(--accent); stroke: var(--accent); stroke-width: 1.5; }
-.canvas .support .fixed-wall { stroke-width: 4; }
+.canvas .support .wall { stroke-width: 4; }
 .canvas .support text { fill: var(--muted); stroke: none; }
 
-.canvas .load-distributed polygon { fill: color-mix(in srgb, var(--c-shear) 22%, transparent); }
-.canvas .load-distributed polyline { fill: none; stroke: var(--c-shear); stroke-width: 2; }
-.canvas .load-distributed .load-arrow { stroke: var(--c-shear); stroke-width: 1.4; }
-.canvas .load-distributed { color: var(--c-shear); }
-.canvas .load-distributed text { fill: var(--c-shear); }
+.canvas .dist polygon { fill: color-mix(in srgb, var(--c-shear) 22%, transparent); }
+.canvas .dist polyline { fill: none; stroke: var(--c-shear); stroke-width: 2; }
+.canvas .dist line { stroke: var(--c-shear); stroke-width: 1.4; }
+.canvas .dist { color: var(--c-shear); }
+.canvas .dist text { fill: var(--c-shear); }
 
-.canvas .load-point line { stroke: var(--c-moment); stroke-width: 2.5; }
-.canvas .load-point text { fill: var(--c-moment); }
-.canvas .load-couple path { stroke: var(--c-slope); stroke-width: 2.5; fill: none; }
-.canvas .load-couple text { fill: var(--c-slope); }
+.canvas .pt line { stroke: var(--c-moment); stroke-width: 2.5; }
+.canvas .pt text { fill: var(--c-moment); }
+.canvas .cpl path { stroke: var(--c-slope); stroke-width: 2.5; fill: none; }
+.canvas .cpl text { fill: var(--c-slope); }
 .canvas marker path { fill: currentColor; }
-.canvas .load-point { color: var(--c-moment); }
-.canvas .load-couple { color: var(--c-slope); }
+.canvas .pt { color: var(--c-moment); }
+.canvas .cpl { color: var(--c-slope); }
 
 /* -------------------------------------------------------------- ecuaciones */
 
@@ -269,3 +275,110 @@ textarea { width: 100%; min-height: 70px; font-family: ui-monospace, monospace; 
 .recap { opacity: .88; }
 .recap-eq { padding: 6px 0; border-top: 1px solid var(--line); }
 .recap-eq:first-of-type { border-top: none; }
+
+/* ---------------------------------------------------------------- sandbox */
+
+.modules { display: flex; gap: 2px; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 2px; }
+.modules button { background: none; border: none; padding: 5px 14px; border-radius: 6px;
+  color: var(--muted); font-size: 13px; }
+.modules button[aria-selected="true"] { background: var(--accent); color: #fff; }
+.modules button:hover:not([aria-selected="true"]) { color: var(--text); }
+
+.canvas.placing { cursor: crosshair; }
+.canvas .handle {
+  fill: var(--panel);
+  stroke: var(--accent);
+  stroke-width: 2;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.canvas:hover .handle { opacity: .9; }
+.canvas .handle:hover { fill: var(--accent); r: 8; }
+.canvas .sel .handle { opacity: 1; fill: var(--accent); }
+
+.canvas .dist, .canvas .pt, .canvas .cpl,
+.canvas .support, .canvas .bc, .canvas .probe { cursor: pointer; }
+
+.canvas .sel polygon, .canvas .sel polyline, .canvas .sel line, .canvas .sel path {
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+
+.canvas .beam.thermo { stroke: var(--c-moment); }
+.canvas .beam.em { stroke: var(--c-slope); }
+
+.canvas .bc line { stroke: var(--c-moment); stroke-width: 2.5; }
+.canvas .bc rect { fill: var(--panel-2); stroke: var(--c-moment); stroke-width: 1.5; }
+.canvas .bc .glyph { fill: var(--c-moment); font-size: 12px; font-weight: 600; }
+.canvas .bc-insulated line, .canvas .bc-insulated rect { stroke: var(--muted); }
+.canvas .bc-insulated .glyph { fill: var(--muted); }
+
+.canvas .probe .lead { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.canvas .probe .handle { opacity: 1; fill: var(--c-defl); stroke: var(--c-defl); }
+.canvas .probe text { fill: var(--c-defl); }
+
+.canvas .ghost line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; }
+.canvas .ghost text { fill: var(--accent); font-size: 12px; font-weight: 600; }
+
+.palette { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); }
+
+.tool {
+  display: block;
+  text-align: left;
+  padding: 8px 11px;
+  line-height: 1.35;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+}
+.tool b { display: block; color: var(--text); font-size: 13px; font-weight: 600; }
+.tool span { font-size: 11px; }
+.tool[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+
+.placing-hint { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; color: var(--accent); }
+
+kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--panel-2);
+}
+
+.inspector { border-color: var(--accent); }
+.inspector .grid { grid-template-columns: 1fr; }
+
+/* ---------------------------------------------------------------- mapa 2D */
+
+.fieldmap { display: grid; gap: 10px; }
+.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.fieldmap-tabs button { font-size: 12px; padding: 4px 11px; }
+.fieldmap-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.fieldmap canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  image-rendering: auto;
+}
+.plate.wide { grid-column: 1 / -1; }
+
+.quarantine { margin-top: 10px; }
+.quarantine summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.quarantine summary:hover { color: var(--text); }
+.hint.mono { font-family: ui-monospace, monospace; font-size: 11px; word-spacing: .35em; }
+
+/* Fuentes escalares: mismo perfil, color del modulo, sin flechas de sentido. */
+.canvas .dist.thermo polygon { fill: color-mix(in srgb, var(--c-moment) 17%, transparent); }
+.canvas .dist.thermo polyline { stroke: var(--c-moment); }
+.canvas .dist.thermo text { fill: var(--c-moment); }
+.canvas .dist.em polygon { fill: color-mix(in srgb, var(--c-slope) 17%, transparent); }
+.canvas .dist.em polyline { stroke: var(--c-slope); }
+.canvas .dist.em text { fill: var(--c-slope); }
+
+.results th.sym-cell { width: 92px; }

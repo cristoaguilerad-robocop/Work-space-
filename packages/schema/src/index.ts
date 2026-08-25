@@ -62,6 +62,33 @@ export interface DerivedSupport {
   at: Packaged;
 }
 
+export interface DerivedBoundary {
+  id: string;
+  type: 'temperature' | 'flux' | 'convection' | 'insulated';
+  at: Packaged;
+  label: string;
+}
+
+export interface DerivedProbe {
+  id: string;
+  label: string;
+  at: [Packaged, Packaged, Packaged];
+}
+
+/**
+ * Planteamiento de un campo en Electro.
+ *
+ * `parts` son los integrandos por tramo -- cada uno con sus limites propios,
+ * para que la cuadratura del cliente no atraviese un salto de densidad --,
+ * `discrete` el aporte exacto de las cargas puntuales y `closed_form` la
+ * primitiva cuando existe.
+ */
+export interface FieldSetup {
+  parts: { integrand: Packaged; start: Packaged; end: Packaged }[];
+  discrete: Packaged;
+  closed_form: Packaged | null;
+}
+
 export interface DerivedBody {
   body_id: string;
   name: string;
@@ -72,6 +99,15 @@ export interface DerivedBody {
   length: Packaged;
   loads: DerivedLoad[];
   supports: DerivedSupport[];
+  /** Termo. */
+  boundaries?: DerivedBoundary[];
+  /** Electro. */
+  probes?: DerivedProbe[];
+  field_setups?: Record<string, FieldSetup>;
+  /** Electro: nombres de las coordenadas del punto de observacion. */
+  observer?: string[];
+  module?: 'statics' | 'thermo' | 'em';
+  kind?: string;
   reactions: Record<string, Packaged>;
   functions: Record<string, Packaged>;
   scalars: Record<string, Packaged>;

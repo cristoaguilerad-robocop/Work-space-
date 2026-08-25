@@ -1,409 +1,188 @@
-import type { Body, MechanicalLoad, ProblemModel } from '@wf/schema';
-import type { DerivedBody } from '@wf/schema';
+import { useCallback, useEffect, useState } from 'react';
+import type { DerivedBody, ProblemModel } from '@wf/schema';
 
-import { Canvas } from './Canvas';
+import {
+  PALETTE, freshId, makeBoundary, makeField, makeSupport, type Module,
+} from '../lib/elements';
+import { Inspector } from './Inspector';
+import { Palette } from './Palette';
+import { SandboxCanvas, type Selection } from './SandboxCanvas';
 
 interface Props {
   model: ProblemModel;
+  module: Module;
   derivedBody: DerivedBody | null;
   bindings: Record<string, number>;
   onChange: (update: (model: ProblemModel) => ProblemModel) => void;
 }
 
-type Load = MechanicalLoad;
-
-/** Aplica un cambio al unico cuerpo del modelo (el MVP trabaja con uno). */
-function patchBody(model: ProblemModel, patch: (body: Body) => Body): ProblemModel {
-  return { ...model, bodies: model.bodies.map((b, i) => (i === 0 ? patch(b) : b)) };
-}
-
-const DISTRIBUTION_LABELS: Record<string, string> = {
-  point: 'Puntual',
-  uniform: 'Uniforme',
-  linear: 'Lineal / triangular / trapezoidal',
-  polynomial: 'Polinomica',
-  expression: 'Funcion custom de x',
-};
-
 /**
- * Etapa 1: modelar el problema.
+ * Etapa 1: armar el problema.
  *
- * El editor de distribucion es la pieza central: una carga no se define por un
- * valor y una posicion, sino por una funcion sobre un tramo del dominio.
+ * El canvas no es una vista previa: es donde se construye. Se elige un
+ * elemento de la paleta, se hace clic en el cuerpo para colocarlo, y despues
+ * se arrastra para moverlo. Cada posicion se guarda como expresion del
+ * dominio, no como numero, para que la etapa 2 siga siendo parametrica.
  */
-export function Stage1({ model, derivedBody, bindings, onChange }: Props) {
+export function Stage1({ model, module, derivedBody, bindings, onChange }: Props) {
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+
   const body = model.bodies[0];
+
+  const remove = useCallback(() => {
+    if (!selection) return;
+    onChange((m) => {
+      if (selection.target === 'field') {
+        return {
+          ...m,
+          bodies: m.bodies.map((b, i) => (i !== 0 ? b : {
+            ...b, fields: b.fields.filter((f) => f.id !== selection.id),
+          })),
+        };
+      }
+      if (selection.target === 'support') {
+        return { ...m, supports: m.supports.filter((s) => s.id !== selection.id) };
+      }
+      if (selection.target === 'boundary') {
+        return { ...m, boundaries: m.boundaries.filter((b) => b.id !== selection.id) };
+      }
+      return { ...m, probes: m.probes.filter((p) => p.id !== selection.id) };
+    });
+    setSelection(null);
+  }, [selection, onChange]);
+
+  // Suprimir borra lo seleccionado, salvo mientras se escribe en un campo.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (event.key === 'Delete' || event.key === 'Backspace') remove();
+      if (event.key === 'Escape') { setPending(null); setSelection(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [remove]);
+
+  const place = useCallback((at: string) => {
+    if (!pending) return;
+    const item = PALETTE[module].find((entry) => entry.id === pending);
+    if (!item) return;
+
+    onChange((m) => {
+      if (item.target === 'field') {
+        const field = makeField(pending, module, m, at);
+        return {
+          ...m,
+          bodies: m.bodies.map((b, i) => (i !== 0 ? b : { ...b, fields: [...b.fields, field] })),
+        };
+      }
+      if (item.target === 'support') {
+        return { ...m, supports: [...m.supports, makeSupport(pending, m, at)] };
+      }
+      if (item.target === 'boundary') {
+        return { ...m, boundaries: [...m.boundaries, makeBoundary(pending, m, at)] };
+      }
+      return {
+        ...m,
+        probes: [...m.probes, {
+          id: freshId('P', m.probes.map((p) => p.id)),
+          at: [at, '0.5', '0'] as [string, string, string],
+          label: `P${m.probes.length + 1}`,
+        }],
+      };
+    });
+    setPending(null);
+  }, [pending, module, onChange]);
+
   if (!body) return <p className="empty">El modelo no tiene cuerpos.</p>;
 
-  const loads = body.fields.filter((f): f is Load => f.kind === 'load');
-  const thermal = body.fields.find((f) => f.kind === 'thermal');
-
-  const updateLoad = (id: string, patch: Partial<Load>) =>
-    onChange((m) =>
-      patchBody(m, (b) => ({
-        ...b,
-        fields: b.fields.map((f) =>
-          f.kind === 'load' && f.id === id ? { ...f, ...patch } : f,
-        ),
-      })),
-    );
-
-  const removeLoad = (id: string) =>
-    onChange((m) =>
-      patchBody(m, (b) => ({
-        ...b,
-        fields: b.fields.filter((f) => !(f.kind === 'load' && f.id === id)),
-      })),
-    );
-
-  const addLoad = () =>
-    onChange((m) =>
-      patchBody(m, (b) => {
-        const id = `q${b.fields.length + 1}`;
-        const nuevo: Load = {
-          kind: 'load',
-          id,
-          label: 'Carga nueva',
-          quantity: 'force',
-          region: { type: 'full' },
-          distribution: { type: 'uniform', w: 'w0' },
-          direction: { frame: 'global', vector: ['0', '-1', '0'] },
-          units: 'N/m',
-        } as Load;
-        return { ...b, fields: [...b.fields, nuevo] };
-      }),
-    );
-
   return (
-    <div className="stage stage1">
-      <section className="panel canvas-panel">
-        <h2>Modelo</h2>
-        {derivedBody ? (
-          <Canvas body={derivedBody} bindings={bindings} />
+    <div className="sheet cols-model">
+      <div className="stack">
+        <section className="plate">
+          <h2>Canvas — arma el problema</h2>
+          {derivedBody ? (
+            <SandboxCanvas
+              body={derivedBody}
+              model={model}
+              module={module}
+              bindings={bindings}
+              selection={selection}
+              onSelect={setSelection}
+              onChange={onChange}
+              pending={pending}
+              onPlace={place}
+            />
+          ) : (
+            <p className="empty">Esperando la derivacion...</p>
+          )}
+          <p className="hint">
+            Arrastra los elementos para moverlos: engancha a fracciones del dominio
+            (<code>L/4</code>, <code>2L/3</code>) para que el planteo siga siendo simbolico.
+            Con <kbd>Alt</kbd> se mueve libre. <kbd>Supr</kbd> quita lo seleccionado.
+          </p>
+        </section>
+
+        <section className="plate">
+          <h2>Elementos</h2>
+          <Palette module={module} pending={pending} onPick={setPending} />
+        </section>
+      </div>
+
+      <div className="stack">
+        {selection ? (
+          <Inspector model={model} selection={selection} onChange={onChange} onDelete={remove} />
         ) : (
-          <p className="empty">Esperando la derivacion...</p>
+          <section className="plate">
+            <h2>Inspector</h2>
+            <p className="hint">
+              Selecciona un elemento del canvas para editarlo, o elegi uno de la paleta y
+              hace clic en el cuerpo para agregarlo.
+            </p>
+          </section>
         )}
-      </section>
 
-      <section className="panel">
-        <h2>Cuerpo</h2>
-        <div className="grid">
-          <label>
-            Nombre
-            <input
-              value={body.name ?? ''}
-              onChange={(e) => onChange((m) => patchBody(m, (b) => ({ ...b, name: e.target.value })))}
-            />
-          </label>
-          <label>
-            Dominio x ∈ [0, ...]
-            <input
-              value={body.domain.end}
-              onChange={(e) =>
-                onChange((m) =>
-                  patchBody(m, (b) => ({ ...b, domain: { ...b.domain, end: e.target.value } })),
-                )
-              }
-            />
-          </label>
-          <label>
-            Modo de analisis
-            <select
-              value={body.analysis.mode}
-              onChange={(e) =>
-                onChange((m) =>
-                  patchBody(m, (b) => ({
-                    ...b,
-                    analysis: { ...b.analysis, mode: e.target.value as 'rigid' | 'deformable' },
-                  })),
-                )
-              }
-            >
-              <option value="rigid">Rigido — solo resultantes y equilibrio</option>
-              <option value="deformable">Deformable — cortante, momento y elastica</option>
-            </select>
-          </label>
-        </div>
-        <p className="hint">
-          En modo rigido el motor se detiene en la resultante y su punto de aplicacion. En
-          deformable sigue integrando hasta la deflexion. Es el mismo pipeline, truncado
-          en distinto punto.
-        </p>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Cargas</h2>
-          <button type="button" onClick={addLoad}>+ Agregar carga</button>
-        </div>
-
-        {loads.map((load) => (
-          <article key={load.id} className="load-card">
-            <header>
-              <input
-                className="load-title"
-                value={load.label ?? ''}
-                onChange={(e) => updateLoad(load.id, { label: e.target.value })}
-              />
-              <code>{load.id}</code>
-              <button type="button" className="danger" onClick={() => removeLoad(load.id)}>
-                Quitar
-              </button>
-            </header>
-
-            <div className="grid">
-              <label>
-                Tipo de distribucion
-                <select
-                  value={load.distribution.type}
-                  onChange={(e) => {
-                    const type = e.target.value;
-                    const distribution =
-                      type === 'point' ? { type, magnitude: 'P' }
-                      : type === 'uniform' ? { type, w: 'w0' }
-                      : type === 'linear' ? { type, w_start: '0', w_end: 'w0' }
-                      : type === 'polynomial' ? { type, coeffs: ['w0', '0'] }
-                      : { type: 'expression', expr: 'w0*sin(pi*x/L)' };
-                    const region =
-                      type === 'point'
-                        ? { type: 'point' as const, at: 'L/2' }
-                        : load.region.type === 'point'
-                          ? { type: 'full' as const }
-                          : load.region;
-                    updateLoad(load.id, {
-                      distribution: distribution as Load['distribution'],
-                      region: region as Load['region'],
-                    });
-                  }}
-                >
-                  {Object.entries(DISTRIBUTION_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-
-              {load.region.type === 'point' ? (
-                <label>
-                  Posicion
-                  <input
-                    value={load.region.at}
-                    onChange={(e) =>
-                      updateLoad(load.id, { region: { type: 'point', at: e.target.value } })
-                    }
-                  />
-                </label>
-              ) : (
-                <label>
-                  Tramo
-                  <span className="pair">
-                    <input
-                      value={load.region.type === 'interval' ? load.region.start : '0'}
-                      onChange={(e) =>
-                        updateLoad(load.id, {
-                          region: {
-                            type: 'interval',
-                            start: e.target.value,
-                            end: load.region.type === 'interval' ? load.region.end : 'L',
-                          },
-                        })
-                      }
-                    />
-                    <input
-                      value={load.region.type === 'interval' ? load.region.end : 'L'}
-                      onChange={(e) =>
-                        updateLoad(load.id, {
-                          region: {
-                            type: 'interval',
-                            start: load.region.type === 'interval' ? load.region.start : '0',
-                            end: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </span>
-                </label>
-              )}
-
-              <DistributionFields load={load} onPatch={(d) => updateLoad(load.id, { distribution: d })} />
-
-              <label>
-                Sentido
-                <select
-                  value={load.direction.vector[1] === '-1' ? 'down' : 'up'}
-                  onChange={(e) =>
-                    updateLoad(load.id, {
-                      direction: {
-                        frame: 'global',
-                        vector: ['0', e.target.value === 'down' ? '-1' : '1', '0'],
-                      } as Load['direction'],
-                    })
-                  }
-                >
-                  <option value="down">Hacia abajo</option>
-                  <option value="up">Hacia arriba</option>
-                </select>
-              </label>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="panel">
-        <h2>Campo de temperatura</h2>
-        {thermal && thermal.kind === 'thermal' && thermal.profile.type === 'linear_through_section' ? (
+        <section className="plate">
+          <h2>Cuerpo</h2>
           <div className="grid">
             <label>
-              T en la cara superior
-              <input
-                value={thermal.profile.T_top}
-                onChange={(e) =>
-                  onChange((m) =>
-                    patchBody(m, (b) => ({
-                      ...b,
-                      fields: b.fields.map((f) =>
-                        f.kind === 'thermal' && f.profile.type === 'linear_through_section'
-                          ? { ...f, profile: { ...f.profile, T_top: e.target.value } }
-                          : f,
-                      ),
-                    })),
-                  )
-                }
-              />
+              Nombre
+              <input value={body.name ?? ''}
+                     onChange={(e) => onChange((m) => ({
+                       ...m,
+                       bodies: m.bodies.map((b, i) => (i === 0 ? { ...b, name: e.target.value } : b)),
+                     }))} />
             </label>
             <label>
-              T en la cara inferior
-              <input
-                value={thermal.profile.T_bottom}
-                onChange={(e) =>
-                  onChange((m) =>
-                    patchBody(m, (b) => ({
-                      ...b,
-                      fields: b.fields.map((f) =>
-                        f.kind === 'thermal' && f.profile.type === 'linear_through_section'
-                          ? { ...f, profile: { ...f.profile, T_bottom: e.target.value } }
-                          : f,
-                      ),
-                    })),
-                  )
-                }
-              />
+              Dominio x ∈ [0, ...]
+              <input value={body.domain.end}
+                     onChange={(e) => onChange((m) => ({
+                       ...m,
+                       bodies: m.bodies.map((b, i) => (i === 0
+                         ? { ...b, domain: { ...b.domain, end: e.target.value } } : b)),
+                     }))} />
             </label>
-          </div>
-        ) : (
-          <p className="hint">Este cuerpo no tiene campo termico definido.</p>
-        )}
-        <p className="hint">
-          El perfil guarda la temperatura arriba y abajo por separado, no un promedio: la
-          diferencia es lo que produce curvatura termica.
-        </p>
-      </section>
-
-      <section className="panel">
-        <h2>Apoyos</h2>
-        {model.supports.map((support) => (
-          <div key={support.id} className="grid support-row">
-            <label>
-              Id
-              <input value={support.id} readOnly />
-            </label>
-            <label>
-              Tipo
-              <select
-                value={support.type}
-                onChange={(e) =>
-                  onChange((m) => ({
+            {module === 'statics' && (
+              <label>
+                Modo de analisis
+                <select
+                  value={body.analysis.mode}
+                  onChange={(e) => onChange((m) => ({
                     ...m,
-                    supports: m.supports.map((s) =>
-                      s.id === support.id
-                        ? { ...s, type: e.target.value as typeof s.type }
-                        : s,
-                    ),
-                  }))
-                }
-              >
-                <option value="pin">Articulado (pin)</option>
-                <option value="roller">Movil (roller)</option>
-                <option value="fixed">Empotrado</option>
-              </select>
-            </label>
-            <label>
-              Posicion
-              <input
-                value={support.at}
-                onChange={(e) =>
-                  onChange((m) => ({
-                    ...m,
-                    supports: m.supports.map((s) =>
-                      s.id === support.id ? { ...s, at: e.target.value } : s,
-                    ),
-                  }))
-                }
-              />
-            </label>
+                    bodies: m.bodies.map((b, i) => (i === 0
+                      ? { ...b, analysis: { ...b.analysis, mode: e.target.value as 'rigid' | 'deformable' } }
+                      : b)),
+                  }))}
+                >
+                  <option value="rigid">Rigido — resultantes y equilibrio</option>
+                  <option value="deformable">Deformable — hasta la elastica</option>
+                </select>
+              </label>
+            )}
           </div>
-        ))}
-        <p className="hint">
-          Los apoyos se anclan a la coordenada del dominio, no a pixeles: mover el cuerpo en
-          el canvas no toca el planteo.
-        </p>
-      </section>
+        </section>
+      </div>
     </div>
   );
-}
-
-function DistributionFields({
-  load,
-  onPatch,
-}: {
-  load: Load;
-  onPatch: (d: Load['distribution']) => void;
-}) {
-  const d = load.distribution;
-  switch (d.type) {
-    case 'point':
-      return (
-        <label>
-          Magnitud
-          <input value={d.magnitude} onChange={(e) => onPatch({ ...d, magnitude: e.target.value })} />
-        </label>
-      );
-    case 'uniform':
-      return (
-        <label>
-          Intensidad w
-          <input value={d.w} onChange={(e) => onPatch({ ...d, w: e.target.value })} />
-        </label>
-      );
-    case 'linear':
-      return (
-        <label>
-          Intensidad inicial → final
-          <span className="pair">
-            <input value={d.w_start} onChange={(e) => onPatch({ ...d, w_start: e.target.value })} />
-            <input value={d.w_end} onChange={(e) => onPatch({ ...d, w_end: e.target.value })} />
-          </span>
-        </label>
-      );
-    case 'polynomial':
-      return (
-        <label>
-          Coeficientes (separados por coma)
-          <input
-            value={d.coeffs.join(', ')}
-            onChange={(e) =>
-              onPatch({ ...d, coeffs: e.target.value.split(',').map((c) => c.trim()) })
-            }
-          />
-        </label>
-      );
-    case 'expression':
-      return (
-        <label>
-          w(x) =
-          <input value={d.expr} onChange={(e) => onPatch({ ...d, expr: e.target.value })} />
-        </label>
-      );
-    default:
-      return null;
-  }
 }
