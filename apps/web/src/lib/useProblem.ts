@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DeriveResponse, ProblemDoc, ProblemModel } from '@wf/schema';
 
 import { derive } from './api';
-import { createDoc, numericBindings, orphanedEdits, reconcile, save } from './doc';
+import { createDoc, loadLatest, numericBindings, orphanedEdits, reconcile, save } from './doc';
 
 export type Status = 'idle' | 'deriving' | 'error';
 
@@ -10,22 +10,25 @@ export type Status = 'idle' | 'deriving' | 'error';
 const DEBOUNCE_MS = 300;
 
 export function useProblem(initial: ProblemModel) {
-  const [doc, setDoc] = useState<ProblemDoc>(() => createDoc(initial));
+  // Se retoma lo ultimo que quedo guardado; si no hay nada, se empieza limpio.
+  const [doc, setDoc] = useState<ProblemDoc>(() => loadLatest() ?? createDoc(initial));
   const [derived, setDerived] = useState<DeriveResponse | null>(null);
   const [status, setStatus] = useState<Status>('deriving');
   const [error, setError] = useState<string | null>(null);
 
   const model = doc.stage1;
 
-  // Solo la fisica dispara una re-derivacion. Mover un cuerpo en el canvas
-  // cambia `placement`, que queda fuera de esta clave (igual que del hash del
-  // backend): arrastrar una barra no debe recalcular una sola ecuacion.
+  // Todo lo que describe el problema dispara re-derivacion, la ubicacion de
+  // los cuerpos incluida: en Electro mover una linea cargada cambia el campo.
+  // Fuera quedan el titulo y las etiquetas, que son texto para el usuario.
   const physicsKey = useMemo(
     () =>
       JSON.stringify({
         module: model.module,
+        bodies: model.bodies,
         supports: model.supports,
-        bodies: model.bodies.map(({ placement: _placement, ...rest }) => rest),
+        boundaries: model.boundaries,
+        probes: model.probes,
       }),
     [model],
   );

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sympy as sp
 
-from wf_core.canonical import assemble
+from wf_core.canonical import assemble, local_frame
 from wf_core.jsprint import compile_function, to_ast
 from wf_core.model import (
     FullRegion, IntervalRegion, MechanicalLoad, PointRegion, ProblemModel,
@@ -103,6 +103,47 @@ def _load_descriptors(body, *, emit_ast: bool = False) -> list[dict]:
     return out
 
 
+def _geometry(body, *, emit_ast: bool = False) -> dict:
+    """Ubicacion del cuerpo en el mundo, ya compilada.
+
+    Sale del ``embedding`` del dominio, que es donde vive la posicion: el eje
+    del cuerpo va de ``origin`` a ``origin + L * direction``. El canvas dibuja
+    con esto y no necesita saber nada del modulo.
+    """
+    x = sp.Symbol(body.domain.parameter)
+    axis, transverse = local_frame(body.domain)
+    origin = [sp.sympify(c) for c in body.domain.embedding.origin]
+    return {
+        "origin": [_packaged(c, x, emit_ast=emit_ast) for c in origin],
+        "axis": [_packaged(c, x, emit_ast=emit_ast) for c in axis],
+        "transverse": [_packaged(c, x, emit_ast=emit_ast) for c in transverse],
+    }
+
+
+def _reaction_arrows(supports, reactions, *, x, emit_ast: bool = False) -> list[dict]:
+    """Las reacciones como vectores dibujables: donde actuan y en que sentido.
+
+    Sin esto el canvas tendria que adivinar a que apoyo corresponde cada
+    simbolo. El nombre ya lo dice (``R_A`` actua en el apoyo ``A``), pero
+    hacerlo explicito evita que el dibujo dependa de como se arman los nombres.
+    """
+    arrows: list[dict] = []
+    for support in supports:
+        at = _packaged(sp.sympify(support.at), x, emit_ast=emit_ast)
+        for prefix, component in (("R", "transverse"), ("H", "axial"), ("M", "moment")):
+            name = f"{prefix}_{support.id}"
+            if name not in reactions:
+                continue
+            arrows.append({
+                "id": name,
+                "support_id": support.id,
+                "component": component,
+                "at": at,
+                "value": _packaged(reactions[name], x, emit_ast=emit_ast),
+            })
+    return arrows
+
+
 def derive_cable_body(body, supports, *, emit_ast: bool = False) -> dict:
     """Un cable: misma densidad canonica, otra ley constitutiva.
 
@@ -120,6 +161,7 @@ def derive_cable_body(body, supports, *, emit_ast: bool = False) -> dict:
         "parameter": body.domain.parameter,
         "domain_end": sp.latex(sp.sympify(body.domain.end)),
         "length": _packaged(sp.sympify(body.domain.end), x, emit_ast=emit_ast),
+        "geometry": _geometry(body, emit_ast=emit_ast),
         "shape": _packaged(sol.functions["y"], x, emit_ast=emit_ast),
         "loads": _load_descriptors(body, emit_ast=emit_ast),
         "supports": [
@@ -142,9 +184,13 @@ def derive_body(body, supports, *, emit_ast: bool = False) -> dict:
     x = sp.Symbol(body.domain.parameter)
     sol = solve_beam(body, supports)
     return {
+        "geometry": _geometry(body, emit_ast=emit_ast),
+        "reaction_arrows": _reaction_arrows(supports, sol.reactions, x=x, emit_ast=emit_ast),
         "loads": _load_descriptors(body, emit_ast=emit_ast),
         "supports": [
-            {"id": s.id, "type": s.type, "at": _packaged(sp.sympify(s.at), x, emit_ast=emit_ast)}
+            {"id": s.id, "type": s.type,
+             "at": _packaged(sp.sympify(s.at), x, emit_ast=emit_ast),
+             "elevation": _packaged(sp.sympify(s.elevation), x, emit_ast=emit_ast)}
             for s in supports
         ],
         "body_id": body.id,
@@ -180,6 +226,7 @@ def derive_thermo_body(body, boundaries, *, emit_ast: bool = False) -> dict:
         "parameter": body.domain.parameter,
         "domain_end": sp.latex(sp.sympify(body.domain.end)),
         "length": _packaged(sp.sympify(body.domain.end), x, emit_ast=emit_ast),
+        "geometry": _geometry(body, emit_ast=emit_ast),
         "loads": _load_descriptors(body, emit_ast=emit_ast),
         "supports": [],
         "boundaries": [
@@ -237,6 +284,7 @@ def derive_em_body(body, probes, *, emit_ast: bool = False) -> dict:
         "parameter": body.domain.parameter,
         "domain_end": sp.latex(sp.sympify(body.domain.end)),
         "length": _packaged(sp.sympify(body.domain.end), x, emit_ast=emit_ast),
+        "geometry": _geometry(body, emit_ast=emit_ast),
         "loads": _load_descriptors(body, emit_ast=emit_ast),
         "supports": [],
         "probes": [

@@ -50,7 +50,20 @@ def runtime() -> dict:
 
 @app.get("/api/examples")
 def examples() -> dict:
-    return {"examples": EXAMPLES}
+    """Los ejemplos, normalizados contra el esquema antes de salir.
+
+    Los diccionarios de ``examples.py`` se escriben a mano y solo llevan lo que
+    cada caso necesita: los de Estatica no mencionan ``boundaries`` ni
+    ``probes``. Devolverlos crudos deja al cliente con campos ausentes donde el
+    tipo promete listas. Pasarlos por el modelo los completa, y de paso los
+    valida: un ejemplo mal escrito falla aca y no en la pagina.
+    """
+    return {
+        "examples": [
+            {**example, "model": ProblemModel.model_validate(example["model"]).model_dump(mode="json")}
+            for example in EXAMPLES
+        ]
+    }
 
 
 @app.post("/api/derive")

@@ -2,8 +2,8 @@
 
 Dos decisiones que hacen la diferencia entre "en vivo" y "lento":
 
-1. **Cache por hash del contenido relevante.** Mover un cuerpo en el canvas
-   cambia ``placement``, que no participa de la fisica: no debe re-derivar nada.
+1. **Cache por hash del contenido.** Volver a una configuracion ya vista --
+   deshacer, mover un cuerpo y devolverlo -- no vuelve a derivar nada.
 2. **Timeout con cancelacion de verdad.** SymPy no es interrumpible, asi que la
    derivacion corre en un proceso aparte. Si una integral se cuelga se mata el
    proceso; con hilos habria que esperarla igual.
@@ -31,18 +31,18 @@ class DeriveTimeout(RuntimeError):
 
 
 def physics_hash(model: dict) -> str:
-    """Hash de lo que realmente afecta al resultado.
+    """Hash de lo que afecta al resultado.
 
-    ``placement`` queda deliberadamente fuera: arrastrar un cuerpo en el canvas
-    no cambia una sola ecuacion.
+    Entra el modelo entero, la ubicacion de los cuerpos incluida: en Electro
+    mover una linea cargada cambia el campo en el punto de observacion. Solo
+    quedan afuera el titulo y las etiquetas, que son texto para el usuario.
     """
     relevant = {
         "module": model.get("module"),
-        "bodies": [
-            {k: v for k, v in body.items() if k != "placement"}
-            for body in model.get("bodies", [])
-        ],
+        "bodies": model.get("bodies", []),
         "supports": model.get("supports", []),
+        "boundaries": model.get("boundaries", []),
+        "probes": model.get("probes", []),
     }
     blob = json.dumps(relevant, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode()).hexdigest()[:16]

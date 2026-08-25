@@ -17,8 +17,23 @@ export interface PaletteItem {
   label: string;
   hint: string;
   /** Donde vive el elemento en el documento. */
-  target: 'field' | 'support' | 'boundary' | 'probe';
+  target: 'body' | 'field' | 'support' | 'boundary' | 'probe';
 }
+
+/** Cuerpos que se pueden crear, por modulo. */
+const BODIES: Record<Module, PaletteItem[]> = {
+  statics: [
+    { id: 'beam', label: 'Viga', hint: 'Barra con rigidez a flexion', target: 'body' },
+    { id: 'cable', label: 'Cable', hint: 'Flexible: la forma la da la tension', target: 'body' },
+  ],
+  thermo: [
+    { id: 'bar', label: 'Barra', hint: 'Conduccion 1D a lo largo del cuerpo', target: 'body' },
+  ],
+  em: [
+    { id: 'charged_line', label: 'Linea cargada', hint: 'Soporta densidad de carga', target: 'body' },
+    { id: 'wire', label: 'Conductor', hint: 'Soporta corriente', target: 'body' },
+  ],
+};
 
 export const PALETTE: Record<Module, PaletteItem[]> = {
   statics: [
@@ -51,6 +66,12 @@ export const PALETTE: Record<Module, PaletteItem[]> = {
   ],
 };
 
+/** La paleta completa de un modulo: primero los cuerpos, despues lo que se
+ *  les pone encima. */
+export function paletteFor(module: Module): PaletteItem[] {
+  return [...BODIES[module], ...PALETTE[module]];
+}
+
 /** Un id que no choque con los que ya existen. */
 export function freshId(prefix: string, taken: Iterable<string>): string {
   const used = new Set(taken);
@@ -78,9 +99,8 @@ function regionFor(kind: string, at: string, end: string) {
 }
 
 export function makeField(
-  kind: string, module: Module, model: ProblemModel, at: string,
+  kind: string, module: Module, body: Body, at: string,
 ): MechanicalLoad | ScalarSource {
-  const body = model.bodies[0];
   const end = body.domain.end;
   const taken = body.fields.map((f) => f.id);
 
@@ -141,10 +161,12 @@ export function makeField(
   } as ScalarSource;
 }
 
-export function makeSupport(kind: string, model: ProblemModel, at: string): StructuralSupport {
+export function makeSupport(
+  kind: string, model: ProblemModel, bodyId: string, at: string,
+): StructuralSupport {
   return {
     id: freshId('S', model.supports.map((s) => s.id)),
-    body_id: model.bodies[0].id,
+    body_id: bodyId,
     at,
     type: (kind as StructuralSupport['type']) ?? 'roller',
     elevation: '0',
@@ -152,11 +174,13 @@ export function makeSupport(kind: string, model: ProblemModel, at: string): Stru
   };
 }
 
-export function makeBoundary(kind: string, model: ProblemModel, at: string): BoundaryCondition {
+export function makeBoundary(
+  kind: string, model: ProblemModel, bodyId: string, at: string,
+): BoundaryCondition {
   const type = kind as BoundaryCondition['type'];
   return {
     id: freshId('B', model.boundaries.map((b) => b.id)),
-    body_id: model.bodies[0].id,
+    body_id: bodyId,
     at,
     type,
     value: type === 'temperature' ? 'T1'
@@ -167,6 +191,58 @@ export function makeBoundary(kind: string, model: ProblemModel, at: string): Bou
   };
 }
 
-export function bodyOf(model: ProblemModel): Body {
-  return model.bodies[0];
+/**
+ * Crea un cuerpo nuevo en el punto del mundo donde se hizo clic.
+ *
+ * Cada cuerpo estrena su propio simbolo de longitud (`L1`, `L2`, ...) en vez de
+ * compartir `L`. Compartirlo seria simbolicamente correcto -- y a veces es lo
+ * que uno quiere -- pero hace que estirar un cuerpo estire todos los demas, que
+ * no es lo que nadie espera al arrastrar. Se pueden igualar despues escribiendo
+ * el mismo simbolo a mano.
+ */
+export function makeBody(
+  kind: string, module: Module, model: ProblemModel, at: [number, number],
+): Body {
+  const id = freshId('b', model.bodies.map((b) => b.id));
+  const lengthSymbol = `L${id.slice(1)}`;
+  const isCable = kind === 'cable';
+
+  const constitutive: Body['constitutive'] =
+    module === 'thermo' ? { E: null, I: null, A: 'A', alpha: null, h: null,
+                            k: 'k', rho: null, epsilon_r: null }
+    : module === 'em' ? { E: null, I: null, A: null, alpha: null, h: null,
+                          k: null, rho: null, epsilon_r: null }
+    : { E: 'E', I: 'I', A: 'A', alpha: null, h: null,
+        k: null, rho: null, epsilon_r: null };
+
+  return {
+    id,
+    name: `${kind} ${id}`,
+    type: kind as Body['type'],
+    domain: {
+      kind: 'curve1d',
+      parameter: 'x',
+      start: '0',
+      end: lengthSymbol,
+      embedding: {
+        type: 'straight',
+        // Redondeado: el modelo se lee y se edita a mano, y una coordenada
+        // con dieciseis decimales no dice nada que dos no digan.
+        origin: [at[0].toFixed(2), at[1].toFixed(2), '0'],
+        direction: ['1', '0', '0'],
+      },
+      jacobian: '1',
+    },
+    fields: [],
+    constitutive,
+    analysis: {
+      mode: module === 'statics' && !isCable ? 'deformable' : 'rigid',
+      dof: isCable ? 'cable' : '1d_beam',
+    },
+    cable: isCable ? { mode: 'sag', sag: 'f', at: null, H: null } : null,
+  } as Body;
+}
+
+export function bodyOf(model: ProblemModel, id: string): Body | undefined {
+  return model.bodies.find((b) => b.id === id);
 }

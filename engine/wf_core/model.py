@@ -1,17 +1,23 @@
 """Modelo de datos de "Cuerpo" y del problema.
 
-Cinco capas separadas a proposito dentro de :class:`Body`:
+Cuatro capas separadas a proposito dentro de :class:`Body`:
 
-``placement``    donde esta el cuerpo en el mundo. Solo dibujo, no fisica.
-``domain``      parametrizacion intrinseca sobre la que se integra.
-``fields``      cargas y campos como FUNCIONES sobre ese dominio.
+``domain``       donde esta el cuerpo y sobre que se integra: su parametrizacion
+                 y su ubicacion en el mundo, que son la misma cosa.
+``fields``       cargas y campos como FUNCIONES sobre ese dominio.
 ``constitutive`` material y seccion. Solo se usa en modo deformable.
-``analysis``    rigido o deformable.
+``analysis``     rigido o deformable.
 
-Separar ``placement`` de ``domain`` es lo que permite mover un cuerpo en el
-canvas sin tocar el planteo fisico. Separar ``domain`` de ``fields`` es lo que
-permite que la misma maquinaria integre una barra recta, un arco de corriente o
-una aleta curva.
+Hubo una quinta capa, ``placement``, que guardaba la pose en el mundo aparte del
+dominio con el argumento de que mover un cuerpo en el canvas no debia tocar el
+planteo. Eso vale para una viga -- sus esfuerzos internos no dependen de donde
+este -- pero es falso para una linea cargada: ahi mover el cuerpo cambia el
+campo en cualquier punto de observacion. Con Electro en el proyecto, la posicion
+es un dato fisico, y tener dos lugares donde vive la misma informacion solo
+garantiza que se desincronicen. El ``embedding`` del dominio ES la ubicacion.
+
+Separar ``domain`` de ``fields`` es lo que permite que la misma maquinaria
+integre una barra recta, un arco de corriente o una aleta curva.
 
 Todo se guarda como *string simbolico*, nunca como numero: los valores
 numericos aparecen recien en la etapa 3 como bindings. Asi la etapa 2 puede
@@ -283,18 +289,10 @@ class Analysis(_Base):
     dof: Literal["1d_beam", "cable"] = "1d_beam"
 
 
-class Placement(_Base):
-    """Pose en el mundo. Cambiarla NO invalida la derivacion simbolica."""
-
-    origin: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    rotation_deg: float = 0.0
-
-
 class Body(_Base):
     id: str
     name: str = ""
     type: Literal["beam", "bar", "cable", "disc", "charged_line", "wire"] = "beam"
-    placement: Placement = Field(default_factory=Placement)
     domain: Domain1D = Field(default_factory=Domain1D)
     fields: list[BodyField] = Field(default_factory=list)
     constitutive: Constitutive = Field(default_factory=Constitutive)

@@ -1,14 +1,16 @@
-import type { DerivedBody, ProblemDoc } from '@wf/schema';
+import type { DerivedBody, ProblemDoc, ProblemModel } from '@wf/schema';
 
 import { value } from '../lib/evaluate';
+import type { Module } from '../lib/elements';
 import { FieldMap } from './FieldMap';
 import { Katex } from './Katex';
 import { Plot } from './Plot';
-import type { Module } from '../lib/elements';
-import { SandboxCanvas } from './SandboxCanvas';
+import { DEFAULT_VIEW, WorldCanvas } from './WorldCanvas';
 
 interface Props {
-  body: DerivedBody;
+  bodies: DerivedBody[];
+  model: ProblemModel;
+  module: Module;
   doc: ProblemDoc;
   bindings: Record<string, number>;
   symbols: { name: string; latex: string; units: string; description: string }[];
@@ -17,8 +19,8 @@ interface Props {
 
 interface Diagram { key: string; title: string; units: string; color: string }
 
-/** Que se grafica en cada modulo. En Electro no hay curvas sobre el dominio:
- *  el resultado vive en el plano, asi que va un mapa en vez de un diagrama. */
+/** Que se grafica en cada caso. En Electro el resultado vive en el plano, asi
+ *  que va un mapa en vez de curvas sobre el dominio. */
 const DIAGRAMS: Record<string, Diagram[]> = {
   statics: [
     { key: 'V', title: 'Cortante V(x)', units: 'N', color: 'var(--c-shear)' },
@@ -39,7 +41,6 @@ const DIAGRAMS: Record<string, Diagram[]> = {
   ],
 };
 
-/** Nombres legibles para los escalares que devuelve el motor. */
 const SCALAR_LABELS: Record<string, string> = {
   elongation: 'Alargamiento δ',
   generated: 'Potencia generada',
@@ -63,20 +64,11 @@ function format(v: number): string {
  * Etapa 3: valores numericos.
  *
  * Todo se evalua en el navegador con las funciones que compilo el motor, asi
- * que mover un valor redibuja los diagramas sin ninguna ida y vuelta por red.
- * El modelo de la etapa 1 y las ecuaciones de la etapa 2 quedan a la vista.
+ * que mover un valor redibuja los diagramas sin ninguna ida por red. El sistema
+ * armado en la etapa 1 y las ecuaciones de la 2 quedan a la vista.
  */
-export function Stage3({ body, doc, bindings, symbols, onBinding }: Props) {
-  // Un cable comparte modulo con la viga pero grafica otras cosas.
-  const module = body.kind === 'cable' ? 'cable' : (body.module ?? 'statics');
-  const L = value(body.length.js, bindings) || 1;
-  const breaks = body.loads
-    .filter((l) => l.kind === 'point' || l.kind === 'couple')
-    .map((l) => value(l.start.js, bindings))
-    .filter(Number.isFinite);
-
+export function Stage3({ bodies, model, module, doc, bindings, symbols, onBinding }: Props) {
   const quarantined = Object.entries(doc.stage3.quarantined);
-  const diagrams = (DIAGRAMS[module] ?? []).filter((d) => body.functions[d.key]);
 
   return (
     <div className="stage stage3">
@@ -86,12 +78,8 @@ export function Stage3({ body, doc, bindings, symbols, onBinding }: Props) {
           {symbols.map((symbol) => (
             <label key={symbol.name} title={symbol.description}>
               <span className="sym"><Katex latex={symbol.latex} /></span>
-              <input
-                type="number"
-                value={bindings[symbol.name] ?? ''}
-                step="any"
-                onChange={(e) => onBinding(symbol.name, Number(e.target.value))}
-              />
+              <input type="number" value={bindings[symbol.name] ?? ''} step="any"
+                     onChange={(e) => onBinding(symbol.name, Number(e.target.value))} />
               <span className="units">{symbol.units}</span>
             </label>
           ))}
@@ -112,79 +100,103 @@ export function Stage3({ body, doc, bindings, symbols, onBinding }: Props) {
         )}
       </section>
 
-      <section className="plate">
-        <h2>Resultados</h2>
-        <table className="results">
-          <tbody>
-            {Object.entries(body.reactions).map(([name, packaged]) => (
-              <tr key={name}>
-                <th className="sym-cell"><Katex latex={name} /></th>
-                <td className="expr"><Katex latex={packaged.latex} /></td>
-                <td className="num">{format(value(packaged.js, bindings))}</td>
-              </tr>
-            ))}
-            {Object.entries(body.scalars).map(([name, packaged]) => (
-              <tr key={name}>
-                <th className="sym-cell">{SCALAR_LABELS[name] ?? name}</th>
-                <td className="expr"><Katex latex={packaged.latex} /></td>
-                <td className="num">{format(value(packaged.js, bindings))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {module === 'em' ? (
-        <section className="plate wide">
-          <h2>Mapa del campo</h2>
-          <FieldMap body={body} bindings={bindings} />
-        </section>
-      ) : (
-        <section className="plate">
-          <h2>Diagramas</h2>
-          <div className="plots">
-            {diagrams.map((diagram) => (
-              <Plot
-                key={diagram.key}
-                title={diagram.title}
-                units={diagram.units}
-                fn={body.functions[diagram.key].js}
-                bindings={bindings}
-                length={L}
-                breaks={breaks}
-                color={diagram.color}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      {bodies.map((body) => (
+        <BodyResults key={body.body_id} body={body} bindings={bindings}
+                     showName={bodies.length > 1} />
+      ))}
 
       <section className="plate recap">
         <h2>Lo armado en la etapa 1</h2>
-        <SandboxCanvas
-          body={body}
-          model={doc.stage1}
-          module={(body.module ?? 'statics') as Module}
+        <WorldCanvas
+          bodies={bodies}
+          model={model}
+          module={module}
           bindings={bindings}
           selection={null}
           onSelect={() => undefined}
           onChange={() => undefined}
           pending={null}
+          pendingTarget={null}
           onPlace={() => undefined}
+          view={DEFAULT_VIEW}
+          onView={() => undefined}
+          showReactions
+          interactive={false}
         />
       </section>
 
       <section className="plate recap">
         <h2>Lo planteado en la etapa 2</h2>
-        {body.equations
+        {bodies.flatMap((body) => body.equations
           .filter((e) => e.role === 'equilibrium' || e.role === 'result')
           .map((e) => (
             <div key={e.id} className="recap-eq">
               <span className="eq-title">{e.title}</span>
               <Katex latex={doc.stage2.edits[e.id] ?? e.latex} display />
             </div>
-          ))}
+          )))}
       </section>
     </div>
+  );
+}
+
+/** Resultados y diagramas de un cuerpo. */
+function BodyResults({ body, bindings, showName }: {
+  body: DerivedBody; bindings: Record<string, number>; showName: boolean;
+}) {
+  const kind = body.kind === 'cable' ? 'cable' : (body.module ?? 'statics');
+  const length = value(body.length.js, bindings) || 1;
+  const breaks = body.loads
+    .filter((l) => l.kind === 'point' || l.kind === 'couple')
+    .map((l) => value(l.start.js, bindings))
+    .filter(Number.isFinite);
+
+  const diagrams = (DIAGRAMS[kind] ?? []).filter((d) => body.functions[d.key]);
+  const rows = [
+    ...Object.entries(body.reactions).map(([name, packaged]) => ({ name, packaged, math: true })),
+    ...Object.entries(body.scalars).map(([name, packaged]) =>
+      ({ name: SCALAR_LABELS[name] ?? name, packaged, math: false })),
+  ];
+
+  return (
+    <>
+      {showName && <h2>{body.name}</h2>}
+      {rows.length > 0 && (
+        <section className="plate">
+          <h2>Resultados</h2>
+          <table className="results">
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.name}>
+                  <th className="sym-cell">
+                    {row.math ? <Katex latex={row.name} /> : row.name}
+                  </th>
+                  <td className="expr"><Katex latex={row.packaged.latex} /></td>
+                  <td className="num">{format(value(row.packaged.js, bindings))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {body.field_setups ? (
+        <section className="plate">
+          <h2>Mapa del campo</h2>
+          <FieldMap body={body} bindings={bindings} />
+        </section>
+      ) : diagrams.length > 0 && (
+        <section className="plate">
+          <h2>Diagramas</h2>
+          <div className="plots">
+            {diagrams.map((diagram) => (
+              <Plot key={diagram.key} title={diagram.title} units={diagram.units}
+                    fn={body.functions[diagram.key].js} bindings={bindings}
+                    length={length} breaks={breaks} color={diagram.color} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }

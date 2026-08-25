@@ -4,7 +4,7 @@ import type { DerivedBody, ProblemDoc } from '@wf/schema';
 import { Katex } from './Katex';
 
 interface Props {
-  body: DerivedBody;
+  bodies: DerivedBody[];
   doc: ProblemDoc;
   orphans: string[];
   onEdit: (id: string, latex: string | null) => void;
@@ -33,10 +33,7 @@ const STEP_ICONS: Record<string, string> = {
  * derivado: si el usuario vuelve a la etapa 1 y cambia el modelo, la derivacion
  * se rehace y los parches se re-aplican sobre el resultado nuevo.
  */
-export function Stage2({ body, doc, orphans, onEdit }: Props) {
-  const [openSteps, setOpenSteps] = useState(true);
-  const roles = ['equilibrium', 'result', 'field', 'definition', 'check'];
-
+export function Stage2({ bodies, doc, orphans, onEdit }: Props) {
   return (
     <div className="stage stage2">
       {orphans.length > 0 && (
@@ -57,6 +54,30 @@ export function Stage2({ body, doc, orphans, onEdit }: Props) {
         </div>
       )}
 
+      {bodies.map((body) => (
+        <BodyDerivation key={body.body_id} body={body} doc={doc}
+                        onEdit={onEdit} showName={bodies.length > 1} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * El planteo de un cuerpo.
+ *
+ * Cada cuerpo se deriva por separado: hoy no hay uniones entre cuerpos, asi que
+ * lo que se ve aca es un problema independiente por cada uno.
+ */
+function BodyDerivation({ body, doc, onEdit, showName }: {
+  body: DerivedBody; doc: ProblemDoc;
+  onEdit: (id: string, latex: string | null) => void; showName: boolean;
+}) {
+  const [openSteps, setOpenSteps] = useState(true);
+  const roles = ['equilibrium', 'result', 'field', 'definition', 'check'];
+
+  return (
+    <div>
+      {showName && <h2>{body.name}</h2>}
       {body.notes.length > 0 && (
         <div className="panel warning">
           <h2>Observaciones del motor</h2>

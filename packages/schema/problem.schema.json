@@ -106,9 +106,6 @@
           "title": "Type",
           "type": "string"
         },
-        "placement": {
-          "$ref": "#/$defs/Placement"
-        },
         "domain": {
           "$ref": "#/$defs/Domain1D"
         },
@@ -163,7 +160,6 @@
         "fields",
         "id",
         "name",
-        "placement",
         "type"
       ],
       "title": "Body",
@@ -788,45 +784,6 @@
       ],
       "title": "PiecewisePiece",
       "type": "object"
-    },
-    "Placement": {
-      "additionalProperties": false,
-      "description": "Pose en el mundo. Cambiarla NO invalida la derivacion simbolica.",
-      "properties": {
-        "origin": {
-          "default": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "maxItems": 3,
-          "minItems": 3,
-          "prefixItems": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "title": "Origin",
-          "type": "array"
-        },
-        "rotation_deg": {
-          "default": 0.0,
-          "title": "Rotation Deg",
-          "type": "number"
-        }
-      },
-      "title": "Placement",
-      "type": "object",
-      "required": [
-        "origin",
-        "rotation_deg"
-      ]
     },
     "PointDistribution": {
       "additionalProperties": false,

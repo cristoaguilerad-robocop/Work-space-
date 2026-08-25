@@ -88,6 +88,23 @@ export function load(id: string): ProblemDoc | null {
   }
 }
 
+/**
+ * Recupera el ultimo documento guardado.
+ *
+ * Sin esto el autoguardado no sirve de nada: cada recarga estrenaba un
+ * documento vacio y el trabajo anterior quedaba en localStorage sin forma de
+ * volver a el. Un documento de una version vieja del esquema se descarta en
+ * silencio, que es mejor que arrancar roto.
+ */
+export function loadLatest(): ProblemDoc | null {
+  const [recent] = listDocs();
+  if (!recent) return null;
+  const doc = load(recent.id);
+  if (!doc || !doc.stage1 || !Array.isArray(doc.stage1.bodies)) return null;
+  if (!doc.stage2?.edits || !doc.stage3?.bindings) return null;
+  return doc;
+}
+
 export function listDocs(): { id: string; title: string; updatedAt: string }[] {
   try {
     return JSON.parse(localStorage.getItem(INDEX_KEY) ?? '[]');

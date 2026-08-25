@@ -5,12 +5,6 @@ export type Title = string;
 export type Id = string;
 export type Name = string;
 export type Type = "beam" | "bar" | "cable" | "disc" | "charged_line" | "wire";
-/**
- * @minItems 3
- * @maxItems 3
- */
-export type Origin = [unknown, unknown, unknown];
-export type RotationDeg = number;
 export type Kind = "curve1d";
 export type Parameter = string;
 export type Start = string;
@@ -21,7 +15,7 @@ export type Type1 = "straight";
  * @minItems 3
  * @maxItems 3
  */
-export type Origin1 = [unknown, unknown, unknown];
+export type Origin = [unknown, unknown, unknown];
 /**
  * @minItems 3
  * @maxItems 3
@@ -161,19 +155,11 @@ export interface Body {
   id: Id;
   name: Name;
   type: Type;
-  placement: Placement;
   domain: Domain1D;
   fields: Fields;
   constitutive: Constitutive;
   analysis: Analysis;
   cable: CableSpec | null;
-}
-/**
- * Pose en el mundo. Cambiarla NO invalida la derivacion simbolica.
- */
-export interface Placement {
-  origin: Origin;
-  rotation_deg: RotationDeg;
 }
 /**
  * Dominio parametrico de un cuerpo idealizado como curva.
@@ -191,7 +177,7 @@ export interface Domain1D {
  */
 export interface StraightEmbedding {
   type: Type1;
-  origin: Origin1;
+  origin: Origin;
   direction: Direction;
 }
 /**

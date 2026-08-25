@@ -790,10 +790,12 @@
 
       el('div', { class: 'demo-note' },
         el('b', {}, 'Demo'),
-        el('span', {}, 'Los diecisiete modelos vienen pre-derivados porque la derivacion ' +
-          'simbolica necesita SymPy. Todo lo numerico -- diagramas, mapas de campo y el ' +
-          'arrastre de la carga movil -- corre aca, con el mismo codigo que la app. Para ' +
-          'armar modelos libremente en el canvas hay que correr el backend Python.')),
+        el('span', {}, 'Esta pagina es un catalogo de resultados: los modelos vienen ' +
+          'pre-derivados porque la derivacion simbolica necesita SymPy. Todo lo numerico ' +
+          '-- diagramas, mapas de campo y el arrastre de la carga movil -- corre aca, con ' +
+          'el mismo codigo que la app. El canvas donde se arman sistemas libremente ' +
+          '(poner cuerpos donde uno quiera, girarlos, colgarles cargas y apoyos) es la ' +
+          'app, que necesita el backend Python.')),
 
       el('section', { class: 'plate' },
         el('h2', {}, 'Casos'),

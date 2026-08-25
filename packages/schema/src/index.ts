@@ -64,6 +64,27 @@ export interface DerivedSupport {
   elevation?: Packaged;
 }
 
+/** Ubicacion del cuerpo en el mundo, evaluable con los valores de la etapa 3. */
+export interface DerivedGeometry {
+  origin: [Packaged, Packaged, Packaged];
+  axis: [Packaged, Packaged, Packaged];
+  transverse: [Packaged, Packaged, Packaged];
+}
+
+/**
+ * Una reaccion como vector dibujable.
+ *
+ * Viaja aparte de `reactions` porque el canvas necesita saber donde actua y en
+ * que sentido, no solo cuanto vale.
+ */
+export interface DerivedReaction {
+  id: string;
+  support_id: string;
+  component: 'transverse' | 'axial' | 'moment';
+  at: Packaged;
+  value: Packaged;
+}
+
 export interface DerivedBoundary {
   id: string;
   type: 'temperature' | 'flux' | 'convection' | 'insulated';
@@ -99,6 +120,8 @@ export interface DerivedBody {
   domain_end: string;
   /** Longitud del dominio, evaluable con los valores de la etapa 3. */
   length: Packaged;
+  geometry?: DerivedGeometry;
+  reaction_arrows?: DerivedReaction[];
   loads: DerivedLoad[];
   supports: DerivedSupport[];
   /** Termo. */

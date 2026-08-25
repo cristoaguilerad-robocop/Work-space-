@@ -1,4 +1,4 @@
-import { PALETTE, type Module } from '../lib/elements';
+import { paletteFor, type Module } from '../lib/elements';
 
 interface Props {
   module: Module;
@@ -14,7 +14,7 @@ interface Props {
 export function Palette({ module, pending, onPick }: Props) {
   return (
     <div className="palette">
-      {PALETTE[module].map((item) => (
+      {paletteFor(module).map((item) => (
         <button
           key={item.id}
           type="button"
@@ -29,7 +29,8 @@ export function Palette({ module, pending, onPick }: Props) {
       ))}
       {pending && (
         <p className="placing-hint">
-          Hace clic en el cuerpo para colocarlo. Manten <kbd>Alt</kbd> para no enganchar
+          Hace clic en el canvas para colocarlo. Los cuerpos van en cualquier punto;
+          las cargas, apoyos y bordes, sobre un cuerpo. Con <kbd>Alt</kbd> no engancha
           a fracciones del dominio.
         </p>
       )}

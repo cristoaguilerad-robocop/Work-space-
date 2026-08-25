@@ -1,399 +1,162 @@
+/* Hoja minima a proposito.
+ *
+ * Nada de tema, tipografia ni paleta: la pagina se ve como el navegador la
+ * dibuja. Aca solo queda lo que hace falta para que las cosas no se pisen y
+ * para que las curvas y los elementos del canvas se distingan entre si, que es
+ * informacion, no decoracion.
+ */
+
+/* Colores de los instrumentos: cada curva y cada tipo de elemento necesita ser
+   distinguible del resto. Es lo unico que no es un default del navegador. */
 :root {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --panel-2: #1e222b;
-  --line: #2a2f3a;
-  --text: #e6e9ef;
-  --muted: #949cad;
-  --accent: #6ea8fe;
-  --danger: #f2767c;
-  --warn: #e7b567;
-
-  --c-shear: #6ea8fe;
-  --c-moment: #f0a868;
-  --c-slope: #9d8df1;
-  --c-defl: #63c9a8;
+  --c-shear: #1a4fa0;
+  --c-moment: #a8570f;
+  --c-slope: #5b3fa8;
+  --c-defl: #10704f;
+  --c-rule: #999;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f5f6f8;
-    --panel: #ffffff;
-    --panel-2: #f0f2f6;
-    --line: #dde1e9;
-    --text: #1a1d23;
-    --muted: #5f6878;
-    --accent: #2a6df4;
-  }
-}
+body { margin: 8px; background: #fff; color: #000; }
 
-* { box-sizing: border-box; }
+/* ------------------------------------------------------------------ layout */
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
+.topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  padding-bottom: 6px; border-bottom: 1px solid #000; margin-bottom: 10px; }
+.stepper, .modules, .status { display: flex; gap: 4px; align-items: center; }
+.stepper button .num { display: none; }
+.stepper button small { display: none; }
+.stepper button.active, .modules button[aria-selected="true"] { font-weight: bold; }
 
-.app { min-height: 100vh; }
+.stage, .sheet { display: block; }
+.cols-model, .cols-values { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.cols-model > *, .cols-values > * { flex: 1 1 380px; min-width: 0; }
+.stack > * + * { margin-top: 12px; }
 
-/* -------------------------------------------------------------- topbar */
+.panel, .plate { margin-bottom: 14px; }
+.panel > h2, .plate > h2 { font-size: 1em; margin: 0 0 6px; }
+.plate-code { display: none; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 10px 20px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
-}
+.grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.grid > label { flex: 1 1 180px; }
+label { display: block; }
+.grid label > input, .grid label > select { display: block; width: 100%; }
+.grid label > .pair { display: flex; gap: 4px; width: 100%; }
+.pair { display: flex; gap: 4px; }
+.pair input { width: 100%; min-width: 0; }
 
-.brand { display: flex; align-items: center; gap: 10px; }
+.hint, .note { font-size: .85em; color: #444; margin: 4px 0 0; }
+.empty { padding: 20px; }
+.banner.error, .warning { border: 1px solid #b00; padding: 6px 8px; margin-bottom: 10px; }
+.banner.error { color: #b00; }
 
-.module-badge {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  padding: 1px 8px;
-}
+/* ------------------------------------------------------------------ canvas */
 
-.stepper { display: flex; gap: 6px; flex: 1; }
+.canvas { width: 100%; height: auto; display: block; border: 1px solid var(--c-rule); background: #fff; }
+.canvas .beam { stroke: #000; stroke-width: 3; }
+.canvas .cable { fill: none; stroke: var(--c-defl); stroke-width: 3; }
+.canvas .lab { fill: #333; font-size: 11px; }
+.canvas .dim { stroke: var(--c-rule); stroke-width: 1; stroke-dasharray: 4 4; }
+.canvas .support { fill: none; stroke: #000; stroke-width: 1.5; }
+.canvas .support polygon { fill: #fff; }
+.canvas .support text { fill: #333; stroke: none; }
 
-.stepper button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 14px 6px 8px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  color: var(--muted);
-  cursor: pointer;
-  text-align: left;
-}
-
-.stepper button:hover { background: var(--panel-2); }
-
-.stepper button.active {
-  color: var(--text);
-  border-color: var(--line);
-  background: var(--panel-2);
-}
-
-.stepper .num {
-  display: grid;
-  place-items: center;
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.stepper button.active .num { background: var(--accent); color: #fff; border-color: transparent; }
-.stepper .labels { display: flex; flex-direction: column; line-height: 1.2; }
-.stepper small { color: var(--muted); font-size: 11px; }
-
-.status { display: flex; align-items: center; gap: 10px; }
-
-.pill {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--panel-2);
-  color: var(--muted);
-  border: 1px solid var(--line);
-}
-.pill.deriving { color: var(--warn); }
-.pill.error { color: var(--danger); }
-
-/* -------------------------------------------------------------- layout */
-
-main { padding: 20px; max-width: 1400px; margin: 0 auto; }
-
-.stage, .sheet { display: grid; gap: 16px; }
-.stage3 { grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); }
-
-/* El sandbox: canvas y paleta a la izquierda, inspector a la derecha. */
-.cols-model { grid-template-columns: minmax(0, 1.9fr) minmax(310px, 1fr); align-items: start; }
-.stack { display: grid; gap: 16px; align-content: start; }
-
-@media (max-width: 1080px) {
-  .cols-model { grid-template-columns: 1fr; }
-}
-
-.panel, .plate {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.panel > h2, .plate > h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
-  letter-spacing: .06em; color: var(--muted); font-weight: 600; }
-
-.panel-head { display: flex; justify-content: space-between; align-items: center; }
-.panel-head h2 { margin-bottom: 12px; }
-
-.panel.warning, .plate.warning { border-color: var(--warn); }
-.banner { padding: 10px 20px; }
-.banner.error { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
-
-.empty { color: var(--muted); padding: 24px; text-align: center; }
-.hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
-
-/* -------------------------------------------------------------- forms */
-
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
-
-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-
-input, select, textarea, button {
-  font: inherit;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 6px 9px;
-}
-
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-
-button { cursor: pointer; background: var(--panel-2); }
-button:hover { border-color: var(--accent); }
-button.danger { color: var(--danger); }
-
-.pair { display: flex; gap: 6px; }
-.pair input { min-width: 0; flex: 1; }
-
-textarea { width: 100%; min-height: 70px; font-family: ui-monospace, monospace; font-size: 12px; }
-
-.load-card {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
-  background: var(--panel-2);
-}
-
-.load-card header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.load-card .load-title { flex: 1; font-weight: 600; }
-.load-card code { color: var(--muted); font-size: 11px; }
-
-.support-row { align-items: end; }
-
-/* -------------------------------------------------------------- canvas */
-
-.canvas { width: 100%; height: auto; display: block; }
-.canvas .beam { stroke: var(--text); stroke-width: 4; stroke-linecap: round; }
-.canvas .lab { fill: var(--muted); font-size: 11px; }
-.canvas .dim { stroke: var(--line); stroke-width: 1; stroke-dasharray: 4 4; }
-.canvas .support { fill: var(--accent); stroke: var(--accent); stroke-width: 1.5; }
-.canvas .support .wall { stroke-width: 4; }
-.canvas .support text { fill: var(--muted); stroke: none; }
-
-.canvas .dist polygon { fill: color-mix(in srgb, var(--c-shear) 22%, transparent); }
-.canvas .dist polyline { fill: none; stroke: var(--c-shear); stroke-width: 2; }
-.canvas .dist line { stroke: var(--c-shear); stroke-width: 1.4; }
-.canvas .dist { color: var(--c-shear); }
+.canvas .dist polygon { fill: rgba(26, 79, 160, .12); }
+.canvas .dist polyline { fill: none; stroke: var(--c-shear); stroke-width: 1.5; }
+.canvas .dist line { stroke: var(--c-shear); stroke-width: 1; }
 .canvas .dist text { fill: var(--c-shear); }
-
-.canvas .pt line { stroke: var(--c-moment); stroke-width: 2.5; }
+.canvas .dist { color: var(--c-shear); }
+.canvas .pt line { stroke: var(--c-moment); stroke-width: 2; }
 .canvas .pt text { fill: var(--c-moment); }
-.canvas .cpl path { stroke: var(--c-slope); stroke-width: 2.5; fill: none; }
-.canvas .cpl text { fill: var(--c-slope); }
-.canvas marker path { fill: currentColor; }
 .canvas .pt { color: var(--c-moment); }
+.canvas .cpl path { stroke: var(--c-slope); stroke-width: 2; fill: none; }
+.canvas .cpl text { fill: var(--c-slope); }
 .canvas .cpl { color: var(--c-slope); }
+.canvas marker path { fill: currentColor; }
 
-/* -------------------------------------------------------------- ecuaciones */
+.canvas .scalar-pt circle { stroke-width: 1.5; fill: #fff; }
+.canvas .scalar-pt.pos circle, .canvas .scalar-pt.pos text { stroke: var(--c-slope); fill: var(--c-slope); }
+.canvas .scalar-pt.pos circle { fill: #fff; }
+.canvas .scalar-pt.neg circle, .canvas .scalar-pt.neg text { stroke: var(--c-moment); fill: var(--c-moment); }
+.canvas .scalar-pt.neg circle { fill: #fff; }
 
-.equation {
-  border-top: 1px solid var(--line);
-  padding: 12px 0;
-}
-.equation:first-of-type { border-top: none; }
-.equation header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.eq-title { font-weight: 600; font-size: 13px; }
-.eq-id { color: var(--muted); font-size: 11px; }
+.canvas .bc line { stroke: var(--c-moment); stroke-width: 2; }
+.canvas .bc rect { fill: #fff; stroke: var(--c-moment); }
+.canvas .bc .glyph { fill: var(--c-moment); font-size: 11px; }
+.canvas .bc-insulated line, .canvas .bc-insulated rect { stroke: #666; }
+.canvas .bc-insulated .glyph { fill: #666; }
 
-.equation details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 6px; }
-
-.katex-block { display: block; overflow-x: auto; padding: 6px 0; }
-.katex-fallback { color: var(--danger); font-size: 12px; }
-
-.steps { list-style: none; margin: 0; padding: 0; }
-.steps li { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
-.steps li:first-child { border-top: none; }
-.steps li > div { min-width: 0; flex: 1; }
-
-.step-icon {
-  flex: none;
-  display: grid; place-items: center;
-  width: 24px; height: 24px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 13px;
-}
-.steps li[data-kind='integrate'] .step-icon { color: var(--c-moment); }
-.steps li[data-kind='solve'] .step-icon { color: var(--c-defl); }
-.steps li[data-kind='check'] .step-icon { color: var(--accent); }
-
-/* -------------------------------------------------------------- etapa 3 */
-
-.bindings { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-.bindings label { display: grid; grid-template-columns: 56px minmax(0, 1fr) 48px; align-items: center; gap: 8px; }
-.bindings input { min-width: 0; }
-.bindings .sym { text-align: right; color: var(--text); }
-.bindings .units { color: var(--muted); font-size: 11px; }
-
-.results { width: 100%; border-collapse: collapse; }
-.results th, .results td { padding: 7px 8px; border-top: 1px solid var(--line); text-align: left; }
-.results tr:first-child th, .results tr:first-child td { border-top: none; }
-.results th { width: 60px; font-weight: 600; }
-.results .numeric { text-align: right; font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
-
-.plots { display: grid; gap: 12px; }
-.plot { margin: 0; }
-.plot figcaption { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
-.plot svg { width: 100%; height: auto; }
-.plot .axis { stroke: var(--line); stroke-width: 1; }
-.plot .tick { fill: var(--muted); font-size: 9px; }
-.units { color: var(--muted); font-size: 11px; }
-
-.recap { opacity: .88; }
-.recap-eq { padding: 6px 0; border-top: 1px solid var(--line); }
-.recap-eq:first-of-type { border-top: none; }
-
-/* ---------------------------------------------------------------- sandbox */
-
-.modules { display: flex; gap: 2px; background: var(--panel-2); border: 1px solid var(--line);
-  border-radius: 8px; padding: 2px; }
-.modules button { background: none; border: none; padding: 5px 14px; border-radius: 6px;
-  color: var(--muted); font-size: 13px; }
-.modules button[aria-selected="true"] { background: var(--accent); color: #fff; }
-.modules button:hover:not([aria-selected="true"]) { color: var(--text); }
-
-.canvas.placing { cursor: crosshair; }
-.canvas .handle {
-  fill: var(--panel);
-  stroke: var(--accent);
-  stroke-width: 2;
-  cursor: grab;
-  opacity: 0;
-  transition: opacity .12s ease;
-}
-.canvas:hover .handle { opacity: .9; }
-.canvas .handle:hover { fill: var(--accent); r: 8; }
-.canvas .sel .handle { opacity: 1; fill: var(--accent); }
-
-.canvas .dist, .canvas .pt, .canvas .cpl,
-.canvas .support, .canvas .bc, .canvas .probe { cursor: pointer; }
-
-.canvas .sel polygon, .canvas .sel polyline, .canvas .sel line, .canvas .sel path {
-  filter: drop-shadow(0 0 4px var(--accent));
-}
-
-.canvas .beam.thermo { stroke: var(--c-moment); }
-.canvas .beam.em { stroke: var(--c-slope); }
-
-.canvas .bc line { stroke: var(--c-moment); stroke-width: 2.5; }
-.canvas .bc rect { fill: var(--panel-2); stroke: var(--c-moment); stroke-width: 1.5; }
-.canvas .bc .glyph { fill: var(--c-moment); font-size: 12px; font-weight: 600; }
-.canvas .bc-insulated line, .canvas .bc-insulated rect { stroke: var(--muted); }
-.canvas .bc-insulated .glyph { fill: var(--muted); }
-
-.canvas .probe .lead { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
-.canvas .probe .handle { opacity: 1; fill: var(--c-defl); stroke: var(--c-defl); }
+.canvas .probe .lead { stroke: var(--c-rule); stroke-dasharray: 3 3; }
+.canvas .probe circle { fill: #fff; stroke: var(--c-defl); stroke-width: 2; }
 .canvas .probe text { fill: var(--c-defl); }
 
-.canvas .ghost line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; }
-.canvas .ghost text { fill: var(--accent); font-size: 12px; font-weight: 600; }
+/* Reacciones: se dibujan distinto de las cargas porque son resultado, no dato. */
+.canvas .reaction { color: var(--c-defl); }
+.canvas .reaction line { stroke: var(--c-defl); stroke-width: 2; }
+.canvas .reaction path { stroke: var(--c-defl); stroke-width: 2; fill: none; }
+.canvas .reaction text { fill: var(--c-defl); font-size: 10px; }
 
-.palette { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); }
+.canvas .handle { fill: #fff; stroke: #000; stroke-width: 1; opacity: 0; }
+.canvas:hover .handle { opacity: 1; }
+.canvas .sel .handle { opacity: 1; fill: #000; }
+.canvas .sel .body-axis, .canvas .sel .beam, .canvas .sel .cable { stroke-width: 5; }
+.canvas .ghost line { stroke: #000; stroke-dasharray: 3 3; }
+.canvas .ghost text { fill: #000; font-size: 11px; }
+.canvas.placing { cursor: crosshair; }
+.canvas .grabbable { cursor: move; }
 
-.tool {
-  display: block;
-  text-align: left;
-  padding: 8px 11px;
-  line-height: 1.35;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--muted);
-}
-.tool b { display: block; color: var(--text); font-size: 13px; font-weight: 600; }
-.tool span { font-size: 11px; }
-.tool[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+/* ---------------------------------------------------------------- paleta */
 
-.placing-hint { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; color: var(--accent); }
+.palette { display: flex; flex-wrap: wrap; gap: 4px; }
+.tool { text-align: left; }
+.tool b { font-weight: normal; }
+.tool span { display: none; }
+.tool[aria-pressed="true"] { font-weight: bold; }
+.placing-hint { flex-basis: 100%; margin: 4px 0 0; font-size: .85em; }
 
-kbd {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 0 4px;
-  background: var(--panel-2);
-}
+.cases { display: flex; flex-wrap: wrap; gap: 6px; }
 
-.inspector { border-color: var(--accent); }
-.inspector .grid { grid-template-columns: 1fr; }
+/* ------------------------------------------------------------- ecuaciones */
 
-/* ---------------------------------------------------------------- mapa 2D */
+.equation { margin: 10px 0; }
+.eq-head { display: flex; gap: 10px; align-items: baseline; }
+.eq-id { font-size: .8em; color: #666; }
+.eq-body, .katex-block { overflow-x: auto; }
+.katex-fallback { color: #b00; }
+.steps { list-style: none; padding: 0; }
+.steps li { display: flex; gap: 8px; margin: 8px 0; }
+.step-mark, .step-icon { flex: none; width: 1.4em; text-align: center; color: #666; }
+.recap-eq { margin: 8px 0; }
 
-.fieldmap { display: grid; gap: 10px; }
-.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.fieldmap-tabs button { font-size: 12px; padding: 4px 11px; }
-.fieldmap-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.fieldmap canvas {
-  width: 100%;
-  height: auto;
-  display: block;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  image-rendering: auto;
-}
-.plate.wide { grid-column: 1 / -1; }
+/* ---------------------------------------------------------------- etapa 3 */
 
-.quarantine { margin-top: 10px; }
-.quarantine summary { cursor: pointer; font-size: 12px; color: var(--muted); }
-.quarantine summary:hover { color: var(--text); }
-.hint.mono { font-family: ui-monospace, monospace; font-size: 11px; word-spacing: .35em; }
+.bindings { display: flex; flex-wrap: wrap; gap: 8px; }
+.bindings label { display: flex; align-items: center; gap: 5px; flex: 1 1 200px; }
+.bindings .sym { min-width: 3em; text-align: right; }
+.bindings input { flex: 1; min-width: 0; }
+.bindings .units { font-size: .8em; color: #666; }
+.quarantine summary { cursor: pointer; font-size: .85em; }
+.hint.mono { font-family: monospace; }
 
-/* Fuentes escalares: mismo perfil, color del modulo, sin flechas de sentido. */
-.canvas .dist.thermo polygon { fill: color-mix(in srgb, var(--c-moment) 17%, transparent); }
-.canvas .dist.thermo polyline { stroke: var(--c-moment); }
-.canvas .dist.thermo text { fill: var(--c-moment); }
-.canvas .dist.em polygon { fill: color-mix(in srgb, var(--c-slope) 17%, transparent); }
-.canvas .dist.em polyline { stroke: var(--c-slope); }
-.canvas .dist.em text { fill: var(--c-slope); }
+table { border-collapse: collapse; }
+.results { width: 100%; }
+.results th, .results td { border-bottom: 1px solid #ddd; padding: 4px 6px;
+  text-align: left; vertical-align: middle; }
+.results .num { text-align: right; font-family: monospace; white-space: nowrap; }
+.results .expr { overflow-x: auto; max-width: 280px; }
+.units { font-size: .8em; color: #666; }
 
-.results th.sym-cell { width: 92px; }
+.plots { display: block; }
+.plot { margin: 0 0 12px; }
+.plot figcaption { display: flex; justify-content: space-between; font-size: .85em; }
+.plot svg { width: 100%; height: auto; display: block; }
+.plot .zero { stroke: #ccc; }
+.plot .tick { fill: #666; font-size: 9px; }
 
-/* Carga o fuente concentrada: escalar con signo, no un vector. */
-.canvas .scalar-pt circle { stroke-width: 2; }
-.canvas .scalar-pt.pos circle { fill: color-mix(in srgb, var(--c-slope) 22%, var(--panel)); stroke: var(--c-slope); }
-.canvas .scalar-pt.neg circle { fill: color-mix(in srgb, var(--c-moment) 22%, var(--panel)); stroke: var(--c-moment); }
-.canvas .scalar-pt.pos .glyph, .canvas .scalar-pt.pos text { fill: var(--c-slope); }
-.canvas .scalar-pt.neg .glyph, .canvas .scalar-pt.neg text { fill: var(--c-moment); }
-.canvas .scalar-pt .glyph { font-size: 14px; font-weight: 700; }
-
-/* El cable se dibuja como la curva que resuelve el problema, no como recta. */
-.canvas .cable { fill: none; stroke: var(--c-defl); stroke-width: 3.5; stroke-linecap: round; }
-
+.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
 .fieldmap-modes { display: inline-flex; gap: 2px; margin-left: auto; }
+.fieldmap canvas { width: 100%; height: auto; display: block; border: 1px solid var(--c-rule); }
 .fieldmap canvas.surface { cursor: grab; touch-action: none; }
 .fieldmap canvas.surface:active { cursor: grabbing; }
+
+.recap { border-top: 1px solid #ddd; padding-top: 10px; }

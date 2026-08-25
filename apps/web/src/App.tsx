@@ -9,9 +9,9 @@ import { Stage2 } from './components/Stage2';
 import { Stage3 } from './components/Stage3';
 
 const STAGES = [
-  { n: 1, title: 'Armar', hint: 'Coloca cuerpos, cargas y apoyos' },
-  { n: 2, title: 'Plantear', hint: 'Ecuaciones derivadas del modelo' },
-  { n: 3, title: 'Valorizar', hint: 'Numeros, diagramas y mapas' },
+  { n: 1, title: '1. Armar', hint: 'Coloca cuerpos, cargas y apoyos' },
+  { n: 2, title: '2. Plantear', hint: 'Ecuaciones derivadas del modelo' },
+  { n: 3, title: '3. Valorizar', hint: 'Numeros, diagramas y mapas' },
 ] as const;
 
 const MODULES: { id: Module; label: string }[] = [
@@ -20,9 +20,10 @@ const MODULES: { id: Module; label: string }[] = [
   { id: 'thermo', label: 'Termo' },
 ];
 
+/** El sistema arranca vacio: la herramienta es para armar, no para mirar. */
 const SEED: ProblemModel = {
   module: 'statics',
-  title: 'Cargando...',
+  title: 'Sistema nuevo',
   bodies: [],
   supports: [],
   boundaries: [],
@@ -38,21 +39,20 @@ export function App() {
   const module = (doc.stage1.module ?? 'statics') as Module;
 
   useEffect(() => {
-    fetchExamples()
-      .then(({ examples: list }) => {
-        setExamples(list);
-        const first = list.find((x) => x.model.module === 'statics') ?? list[0];
-        if (first) problem.setModel(() => first.model);
-      })
-      .catch(() => undefined);
+    // Solo se cargan los ejemplos en el selector: el lienzo queda vacio para
+    // que lo primero que uno haga sea poner un cuerpo, no borrar el de otro.
+    fetchExamples().then(({ examples: list }) => setExamples(list)).catch(() => undefined);
     // Solo al montar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Al cambiar de modulo se carga su primer ejemplo: cada uno tiene sus elementos. */
+  /** Cambiar de modulo empieza un sistema nuevo: cada uno tiene sus elementos
+   *  y sus reglas, y mezclarlos en un mismo documento no significa nada. */
   const switchModule = (next: Module) => {
-    const seed = examples.find((x) => x.model.module === next);
-    if (seed) problem.setModel(() => seed.model);
+    problem.setModel(() => ({
+      module: next, title: 'Sistema nuevo',
+      bodies: [], supports: [], boundaries: [], probes: [],
+    }));
   };
 
   const moduleExamples = useMemo(
@@ -60,7 +60,7 @@ export function App() {
     [examples, module],
   );
 
-  const body = derived?.bodies[0] ?? null;
+  const bodies = derived?.bodies ?? [];
   const failed = derived?.errors ?? [];
 
   return (
@@ -114,6 +114,12 @@ export function App() {
               <option key={x.id} value={x.id}>{x.title}</option>
             ))}
           </select>
+          <button type="button" onClick={() => problem.setModel(() => ({
+            module, title: 'Sistema nuevo',
+            bodies: [], supports: [], boundaries: [], probes: [],
+          }))}>
+            Vaciar
+          </button>
           <span className={`pill ${status}`}>
             {status === 'deriving' ? 'derivando...' : status === 'error' ? 'error' : 'guardado'}
           </span>
@@ -121,34 +127,31 @@ export function App() {
       </header>
 
       {error && <div className="banner error">Error del motor: {error}</div>}
-      {failed.length > 0 && (
-        <div className="banner error">
-          {failed.map((e) => (
-            <p key={e.body_id}><strong>{e.body_id}:</strong> {e.message}</p>
-          ))}
-        </div>
-      )}
 
       <main>
         {stage === 1 && (
           <Stage1
             model={doc.stage1}
             module={module}
-            derivedBody={body}
+            bodies={bodies}
             bindings={bindings}
+            unresolved={failed}
             onChange={problem.setModel}
+            onBinding={problem.setBinding}
           />
         )}
         {stage === 2 &&
-          (body ? (
-            <Stage2 body={body} doc={doc} orphans={orphans} onEdit={problem.setEquationEdit} />
+          (bodies.length ? (
+            <Stage2 bodies={bodies} doc={doc} orphans={orphans} onEdit={problem.setEquationEdit} />
           ) : (
-            <p className="empty">Todavia no hay ecuaciones: revisa el modelo en la etapa 1.</p>
+            <p className="empty">Todavia no hay ecuaciones: arma el sistema en la etapa 1.</p>
           ))}
         {stage === 3 &&
-          (body ? (
+          (bodies.length ? (
             <Stage3
-              body={body}
+              bodies={bodies}
+              model={doc.stage1}
+              module={module}
               doc={doc}
               bindings={bindings}
               symbols={derived!.symbols}

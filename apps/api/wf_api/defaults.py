@@ -6,6 +6,8 @@ antes de ver nada. Estas sugerencias son solo un punto de partida editable.
 
 from __future__ import annotations
 
+import re
+
 import sympy as sp
 
 #: (valor, unidad, descripcion) por nombre de simbolo.
@@ -52,8 +54,23 @@ SUGGESTIONS: dict[str, tuple[float, str, str]] = {
 }
 
 
+#: Reglas por prefijo, para los simbolos que el usuario crea sobre la marcha.
+#: Cada cuerpo nuevo estrena su propio simbolo de longitud (`L1`, `L2`, ...) y
+#: sin esto naceria de 1 m, casi invisible en el canvas.
+_PREFIXED: list[tuple[re.Pattern[str], tuple[float, str, str]]] = [
+    (re.compile(r"^L\d+$"), (4.0, "m", "Longitud del cuerpo")),
+    (re.compile(r"^w\d+$"), (1000.0, "N/m", "Intensidad de carga distribuida")),
+    (re.compile(r"^P\d+$"), (5000.0, "N", "Carga puntual")),
+]
+
+
 def suggest(name: str) -> dict:
-    value, units, description = SUGGESTIONS.get(name, (1.0, "", ""))
+    fallback = (1.0, "", "")
+    for pattern, guess in _PREFIXED:
+        if pattern.match(name):
+            fallback = guess
+            break
+    value, units, description = SUGGESTIONS.get(name, fallback)
     return {
         "name": name,
         # SymPy sabe que "alpha" se escribe \alpha y que "T_ref" lleva el
