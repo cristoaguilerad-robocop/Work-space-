@@ -1,0 +1,14 @@
+{
+  "name": "@wf/schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "../../.venv/bin/python ../../tooling/gen_schema.py && json2ts -i problem.schema.json -o src/generated.ts --bannerComment \"/* GENERADO. Fuente de verdad: engine/wf_core/model.py. No editar a mano. */\" --additionalProperties false"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.4"
+  }
+}

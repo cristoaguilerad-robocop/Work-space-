@@ -1,0 +1,257 @@
+/* Hoja minima a proposito.
+ *
+ * Nada de tema, tipografia ni paleta: la pagina se ve como el navegador la
+ * dibuja. Aca solo queda lo que hace falta para que las cosas no se pisen y
+ * para que las curvas y los elementos del canvas se distingan entre si, que es
+ * informacion, no decoracion.
+ */
+
+/* Colores de los instrumentos: cada curva y cada tipo de elemento necesita ser
+   distinguible del resto. Es lo unico que no es un default del navegador. */
+:root {
+  --c-shear: #1a4fa0;
+  --c-moment: #a8570f;
+  --c-slope: #5b3fa8;
+  --c-defl: #10704f;
+  --c-rule: #999;
+}
+
+body { margin: 8px; background: #fff; color: #000; }
+
+/* ------------------------------------------------------------------ layout */
+
+.topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  padding-bottom: 6px; border-bottom: 1px solid #000; margin-bottom: 10px; }
+.stepper, .modules, .status { display: flex; gap: 4px; align-items: center; }
+.stepper button .num { display: none; }
+.stepper button small { display: none; }
+.stepper button.active, .modules button[aria-selected="true"] { font-weight: bold; }
+
+.stage, .sheet { display: block; }
+.cols-model, .cols-values { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.cols-model > *, .cols-values > * { flex: 1 1 380px; min-width: 0; }
+.stack > * + * { margin-top: 12px; }
+
+.panel, .plate { margin-bottom: 14px; }
+.panel > h2, .plate > h2 { font-size: 1em; margin: 0 0 6px; }
+.plate-code { display: none; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; }
+
+.grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.grid > label { flex: 1 1 180px; }
+label { display: block; }
+.grid label > input, .grid label > select { display: block; width: 100%; }
+.grid label > .pair { display: flex; gap: 4px; width: 100%; }
+.pair { display: flex; gap: 4px; }
+.pair input { width: 100%; min-width: 0; }
+
+.hint, .note { font-size: .85em; color: #444; margin: 4px 0 0; }
+.empty { padding: 20px; }
+.banner.error, .warning { border: 1px solid #b00; padding: 6px 8px; margin-bottom: 10px; }
+.banner.error { color: #b00; }
+
+/* ------------------------------------------------------------------ canvas */
+
+/* `touch-action: none` es lo que hace que el canvas sea usable con el dedo.
+   Sin esto el navegador se queda con el gesto antes de que llegue aca: tocar un
+   elemento y moverlo desplaza la pagina, y dos dedos le hacen zoom al documento
+   entero en vez de a la escena. */
+.canvas, .scene {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.canvas { width: 100%; height: auto; display: block; border: 1px solid var(--c-rule); background: #fff; }
+
+/* Area de contacto de los tiradores. Un circulo de 7 px se apunta bien con el
+   mouse y no se acierta nunca con el dedo: el borde transparente le da el
+   tamano de una yema sin cambiar lo que se ve. */
+.canvas .handle { stroke: transparent; stroke-width: 18; pointer-events: all; }
+.canvas .hit { stroke: transparent; stroke-width: 24; fill: none; pointer-events: stroke; }
+
+/* Figuras rigidas: las que se arman y se anotan, todavia sin resolver. */
+.canvas .shape { fill: none; stroke: #000; stroke-width: 2; }
+.canvas .shape.block { fill: rgba(0, 0, 0, .06); }
+.canvas .shape .hub { fill: #000; stroke: none; }
+.canvas .shape .radius { stroke: var(--c-rule); stroke-width: 1; stroke-dasharray: 3 3; }
+.canvas .shape.ideal-cable line { stroke-width: 1; }
+.canvas .shape.ideal-cable circle { fill: #000; stroke: none; }
+.canvas .shape.rod .rod-axis { stroke-width: 4; }
+.canvas .shape.rod circle { fill: #fff; stroke: #000; stroke-width: 1.5; }
+.canvas .shape.spring { stroke-width: 2; }
+
+/* Sin esto iOS espera 300 ms por si el toque era un doble-toque para acercar,
+   y cada boton se siente pegajoso. */
+button, select, input[type='checkbox'], .tools label { touch-action: manipulation; }
+
+/* Los botones del teclado matematico se tocan con el dedo: sin esto, iOS
+   interpreta el toque como seleccion de texto o doble-toque para acercar. */
+.mathkeys-grid button { touch-action: manipulation; }
+
+/* Selector de accion: que hace el dedo. */
+.tools { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .3rem 0; }
+.tools button[aria-pressed='true'] { font-weight: 700; }
+.canvas .beam { stroke: #000; stroke-width: 3; }
+.canvas .cable { fill: none; stroke: var(--c-defl); stroke-width: 3; }
+.canvas .lab { fill: #333; font-size: 11px; }
+.canvas .dim { stroke: var(--c-rule); stroke-width: 1; stroke-dasharray: 4 4; }
+.canvas .support { fill: none; stroke: #000; stroke-width: 1.5; }
+.canvas .support polygon { fill: #fff; }
+.canvas .support text { fill: #333; stroke: none; }
+
+.canvas .dist polygon { fill: rgba(26, 79, 160, .12); }
+.canvas .dist polyline { fill: none; stroke: var(--c-shear); stroke-width: 1.5; }
+.canvas .dist line { stroke: var(--c-shear); stroke-width: 1; }
+.canvas .dist text { fill: var(--c-shear); }
+.canvas .dist { color: var(--c-shear); }
+.canvas .pt line { stroke: var(--c-moment); stroke-width: 2; }
+.canvas .pt text { fill: var(--c-moment); }
+.canvas .pt { color: var(--c-moment); }
+.canvas .cpl path { stroke: var(--c-slope); stroke-width: 2; fill: none; }
+.canvas .cpl text { fill: var(--c-slope); }
+.canvas .cpl { color: var(--c-slope); }
+.canvas marker path { fill: currentColor; }
+
+.canvas .scalar-pt circle { stroke-width: 1.5; fill: #fff; }
+.canvas .scalar-pt.pos circle, .canvas .scalar-pt.pos text { stroke: var(--c-slope); fill: var(--c-slope); }
+.canvas .scalar-pt.pos circle { fill: #fff; }
+.canvas .scalar-pt.neg circle, .canvas .scalar-pt.neg text { stroke: var(--c-moment); fill: var(--c-moment); }
+.canvas .scalar-pt.neg circle { fill: #fff; }
+
+.canvas .bc line { stroke: var(--c-moment); stroke-width: 2; }
+.canvas .bc rect { fill: #fff; stroke: var(--c-moment); }
+.canvas .bc .glyph { fill: var(--c-moment); font-size: 11px; }
+.canvas .bc-insulated line, .canvas .bc-insulated rect { stroke: #666; }
+.canvas .bc-insulated .glyph { fill: #666; }
+
+.canvas .probe .lead { stroke: var(--c-rule); stroke-dasharray: 3 3; }
+.canvas .probe circle { fill: #fff; stroke: var(--c-defl); stroke-width: 2; }
+.canvas .probe text { fill: var(--c-defl); }
+
+/* Reacciones: se dibujan distinto de las cargas porque son resultado, no dato. */
+.canvas .reaction { color: var(--c-defl); }
+.canvas .reaction line { stroke: var(--c-defl); stroke-width: 2; }
+.canvas .reaction path { stroke: var(--c-defl); stroke-width: 2; fill: none; }
+.canvas .reaction text { fill: var(--c-defl); font-size: 10px; }
+
+.canvas .handle { fill: #fff; stroke: #000; stroke-width: 1; opacity: 0; }
+.canvas:hover .handle { opacity: 1; }
+.canvas .sel .handle { opacity: 1; fill: #000; }
+.canvas .sel .body-axis, .canvas .sel .beam, .canvas .sel .cable { stroke-width: 5; }
+.canvas .ghost line { stroke: #000; stroke-dasharray: 3 3; }
+.canvas .ghost text { fill: #000; font-size: 11px; }
+.canvas.placing { cursor: crosshair; }
+.canvas .grabbable { cursor: move; }
+
+/* ---------------------------------------------------------------- paleta */
+
+.palette { display: flex; flex-wrap: wrap; gap: 4px; }
+.tool { text-align: left; }
+.tool b { font-weight: normal; }
+.tool span { display: none; }
+.tool[aria-pressed="true"] { font-weight: bold; }
+.placing-hint { flex-basis: 100%; margin: 4px 0 0; font-size: .85em; }
+
+.cases { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ------------------------------------------------------------- ecuaciones */
+
+.equation { margin: 10px 0; }
+.eq-head { display: flex; gap: 10px; align-items: baseline; }
+.eq-id { font-size: .8em; color: #666; }
+.eq-body, .katex-block { overflow-x: auto; }
+.katex-fallback { color: #b00; }
+.steps { list-style: none; padding: 0; }
+.steps li { display: flex; gap: 8px; margin: 8px 0; }
+.step-mark, .step-icon { flex: none; width: 1.4em; text-align: center; color: #666; }
+.recap-eq { margin: 8px 0; }
+
+/* ---------------------------------------------------------------- etapa 3 */
+
+.bindings { display: flex; flex-wrap: wrap; gap: 8px; }
+.bindings label { display: flex; align-items: center; gap: 5px; flex: 1 1 200px; }
+.bindings .sym { min-width: 3em; text-align: right; }
+.bindings input { flex: 1; min-width: 0; }
+.bindings .units { font-size: .8em; color: #666; }
+.quarantine summary { cursor: pointer; font-size: .85em; }
+.hint.mono { font-family: monospace; }
+
+table { border-collapse: collapse; }
+.results { width: 100%; }
+.results th, .results td { border-bottom: 1px solid #ddd; padding: 4px 6px;
+  text-align: left; vertical-align: middle; }
+.results .num { text-align: right; font-family: monospace; white-space: nowrap; }
+.results .expr { overflow-x: auto; max-width: 280px; }
+.units { font-size: .8em; color: #666; }
+
+.plots { display: block; }
+.plot { margin: 0 0 12px; }
+.plot figcaption { display: flex; justify-content: space-between; font-size: .85em; }
+.plot svg { width: 100%; height: auto; display: block; }
+.plot .zero { stroke: #ccc; }
+.plot .tick { fill: #666; font-size: 9px; }
+
+.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.fieldmap-modes { display: inline-flex; gap: 2px; margin-left: auto; }
+.fieldmap canvas { width: 100%; height: auto; display: block; border: 1px solid var(--c-rule); }
+.fieldmap canvas.surface { cursor: grab; touch-action: none; }
+.fieldmap canvas.surface:active { cursor: grabbing; }
+
+.recap { border-top: 1px solid #ddd; padding-top: 10px; }
+
+/* ------------------------------------------------------- cuaderno de pasos */
+
+.doctitle { display: flex; align-items: center; gap: 4px; }
+.doctitle input { width: 16em; }
+.dims { display: inline-flex; gap: 2px; }
+.dims button[aria-pressed="true"] { font-weight: bold; }
+
+.usersteps { list-style: none; padding: 0; margin: 8px 0; }
+.usersteps > li { border-top: 1px solid #ddd; padding: 8px 0; }
+.step-bar { display: flex; gap: 6px; align-items: center; }
+.step-bar .step-n { flex: none; width: 1.6em; color: #666; }
+.step-title { flex: 1; min-width: 0; }
+.usersteps textarea { width: 100%; margin-top: 4px; font-family: monospace; }
+.step-preview { border-left: 3px solid #ddd; padding: 4px 0 4px 8px; margin-top: 4px; }
+.mathtext .katex { font-size: 1em; }
+
+.mathkeys { border-top: 1px solid #ddd; margin-top: 10px; padding-top: 8px; }
+.mathkeys-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.mathkeys-tabs button[aria-pressed="true"] { font-weight: bold; }
+.mathkeys-grid { display: flex; flex-wrap: wrap; gap: 3px; }
+.mathkeys-grid button { min-width: 2.4em; padding: 2px 6px; line-height: 1.4; }
+
+.suggestions, .derived { margin-top: 10px; }
+.suggestions summary, .derived summary { cursor: pointer; }
+.suggestions ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+
+.doclist { list-style: none; padding: 0; }
+.doclist li { padding: 3px 0; }
+.doclist li[aria-current="true"] { background: #f4f4f4; }
+.library { border: 1px solid #000; padding: 8px 10px; }
+
+/* --------------------------------------------------------------- escena 3D */
+
+.scene3 .grid3 { stroke: #eee; stroke-width: 1; }
+.scene3 .axis3 { stroke: #ccc; stroke-width: 1.5; }
+.scene3 .beam3 { stroke: #000; stroke-width: 4; stroke-linecap: round; cursor: move; }
+.scene3 .beam3.sel { stroke: var(--c-shear); stroke-width: 6; }
+.scene3 .lab3 { fill: #444; font-size: 11px; }
+.scene3 .load3 { color: var(--c-moment); }
+.scene3 .load3 line { stroke: var(--c-moment); stroke-width: 2; }
+.scene3 .load3 text { fill: var(--c-moment); font-size: 10px; }
+.scene3 .reaction3 { color: var(--c-defl); }
+.scene3 .reaction3 line { stroke: var(--c-defl); stroke-width: 2.5; }
+.scene3 .reaction3 text { fill: var(--c-defl); font-size: 10px; }
+.scene3 .support3 polygon { fill: #fff; stroke: #000; stroke-width: 1.5; }
+.scene3 .support3 text { fill: #444; font-size: 10px; }
+.scene3 .probe3 circle { fill: #fff; stroke: var(--c-defl); stroke-width: 2; }
+.scene3 .probe3 text { fill: var(--c-defl); font-size: 10px; }
+.scene3 marker path { fill: currentColor; }
+.scene3 { cursor: grab; touch-action: none; }
+.scene3 .shape3 { fill: none; stroke: #000; stroke-width: 2; }
+.scene3 .shape3.block { fill: rgba(0, 0, 0, .08); }
+.scene3 .shape3.ideal_cable { stroke-width: 1; }
+.scene3 .shape3.rod { stroke-width: 4; }
+.scene3 .shape3.sel { stroke: var(--c-shear); }
+.scene3:active { cursor: grabbing; }

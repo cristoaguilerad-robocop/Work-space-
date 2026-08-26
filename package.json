@@ -1,0 +1,13 @@
+{
+  "name": "workspace-funcional",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --filter @wf/web dev",
+    "build": "pnpm --filter @wf/schema build && pnpm --filter @wf/web build",
+    "gen:types": "pnpm --filter @wf/schema build",
+    "api": "cd apps/api && ../../.venv/bin/uvicorn wf_api.main:app --reload --port 8000",
+    "test:engine": "cd engine && ../.venv/bin/python -m pytest -q"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

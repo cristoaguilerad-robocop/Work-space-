@@ -1,0 +1,179 @@
+/* Hoja minima a proposito: la pagina se ve como el navegador la dibuja.
+ * Lo unico que no es un default son los colores de las curvas y de los
+ * elementos del canvas, que son informacion y no decoracion. */
+
+:root {
+  --shear: #1a4fa0;
+  --moment: #a8570f;
+  --slope: #5b3fa8;
+  --defl: #10704f;
+  --rule: #999;
+}
+
+* { box-sizing: border-box; }
+body { margin: 8px; background: #fff; color: #000; }
+
+/* ------------------------------------------------------------- encabezado */
+
+.titleblock { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  border-bottom: 1px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+.tb-cell { display: flex; gap: 6px; align-items: center; }
+.tb-label { font-size: .75em; text-transform: uppercase; letter-spacing: .08em; color: #666; }
+.tb-name { font-weight: bold; }
+.modules, .stepper { display: flex; gap: 4px; }
+.step-n { display: none; }
+.step-t span { display: none; }
+.step, .modules button { font: inherit; padding: 2px 8px; }
+.step[aria-current="true"], .modules button[aria-pressed="true"] { font-weight: bold; }
+
+/* ----------------------------------------------------------------- layout */
+
+main { max-width: 1400px; }
+.sheet { display: block; }
+.cols-model, .cols-values { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.cols-model > *, .cols-values > * { flex: 1 1 380px; min-width: 0; }
+.stack > * + * { margin-top: 12px; }
+
+.plate { margin-bottom: 14px; }
+.plate > h2 { font-size: 1em; margin: 0 0 6px; }
+.plate-code { display: none; }
+
+.spec-row { display: flex; gap: 10px; margin: 4px 0; }
+.spec-key { min-width: 6em; font-size: .85em; color: #666; }
+.spec-val code { font-family: monospace; }
+.spec-val em { font-style: normal; color: #666; font-size: .9em; }
+
+.note, .hint { font-size: .85em; color: #444; margin: 4px 0 0; }
+.demo-note { border-left: 3px solid var(--moment); padding: 6px 10px; margin: 10px 0;
+  font-size: .9em; }
+.demo-note b { color: var(--moment); margin-right: .4em; }
+
+.case-group h3 { font-size: .85em; margin: 12px 0 4px; text-transform: uppercase;
+  letter-spacing: .08em; color: #666; }
+.cases { display: flex; flex-wrap: wrap; gap: 6px; }
+.case { text-align: left; font: inherit; padding: 4px 8px; max-width: 300px; }
+.case b { font-weight: normal; }
+.case span { display: block; font-size: .8em; color: #555; }
+.case[aria-pressed="true"] b { font-weight: bold; }
+
+/* ----------------------------------------------------------------- canvas */
+
+.canvas { width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
+.canvas .beam { stroke: #000; stroke-width: 3; }
+.canvas .cable { fill: none; stroke: var(--defl); stroke-width: 3; }
+.canvas .lab { fill: #333; font-size: 11px; }
+.canvas .dim { stroke: var(--rule); stroke-dasharray: 4 4; }
+.canvas .support { fill: none; stroke: #000; stroke-width: 1.5; }
+.canvas .support polygon { fill: #fff; }
+.canvas .support text { fill: #333; stroke: none; }
+.canvas .support .wall { stroke-width: 3; }
+
+.canvas .dist polygon { fill: rgba(26, 79, 160, .12); }
+.canvas .dist polyline { fill: none; stroke: var(--shear); stroke-width: 1.5; }
+.canvas .dist line { stroke: var(--shear); stroke-width: 1; }
+.canvas .dist text { fill: var(--shear); }
+.canvas .dist { color: var(--shear); }
+.canvas .dist.thermo polygon { fill: rgba(168, 87, 15, .12); }
+.canvas .dist.thermo polyline, .canvas .dist.thermo line { stroke: var(--moment); }
+.canvas .dist.thermo text { fill: var(--moment); }
+.canvas .dist.thermo { color: var(--moment); }
+.canvas .dist.em polygon { fill: rgba(91, 63, 168, .12); }
+.canvas .dist.em polyline, .canvas .dist.em line { stroke: var(--slope); }
+.canvas .dist.em text { fill: var(--slope); }
+.canvas .dist.em { color: var(--slope); }
+.canvas .beam.thermo { stroke: var(--moment); }
+.canvas .beam.em { stroke: var(--slope); }
+
+.canvas .pt line { stroke: var(--moment); stroke-width: 2; }
+.canvas .pt text { fill: var(--moment); }
+.canvas .pt { color: var(--moment); }
+.canvas .cpl path { stroke: var(--slope); stroke-width: 2; fill: none; }
+.canvas .cpl text { fill: var(--slope); }
+.canvas .cpl { color: var(--slope); }
+.canvas marker path { fill: currentColor; }
+
+.canvas .scalar-pt circle { fill: #fff; stroke-width: 1.5; }
+.canvas .scalar-pt.pos circle { stroke: var(--slope); }
+.canvas .scalar-pt.pos text { fill: var(--slope); }
+.canvas .scalar-pt.neg circle { stroke: var(--moment); }
+.canvas .scalar-pt.neg text { fill: var(--moment); }
+.canvas .scalar-pt .glyph { font-size: 13px; font-weight: bold; }
+
+.canvas .bc line { stroke: var(--moment); stroke-width: 2; }
+.canvas .bc rect { fill: #fff; stroke: var(--moment); }
+.canvas .bc .glyph { fill: var(--moment); font-size: 11px; }
+.canvas .bc-insulated line, .canvas .bc-insulated rect { stroke: #666; }
+.canvas .bc-insulated .glyph { fill: #666; }
+
+.canvas .probe circle { fill: #fff; stroke: var(--defl); stroke-width: 2; }
+.canvas .probe .lead { stroke: var(--rule); stroke-dasharray: 3 3; }
+.canvas .probe text { fill: var(--defl); }
+
+.canvas .grab { fill: #fff; stroke: var(--moment); stroke-width: 2; cursor: grab; }
+.canvas .grab:active { cursor: grabbing; }
+.canvas .drag-lab { fill: var(--moment); font-family: monospace; font-size: 10px; }
+.canvas.draggable { touch-action: none; }
+
+/* ------------------------------------------------------------- ecuaciones */
+
+.derivation { max-width: 1000px; }
+.eq { margin: 10px 0; }
+.eq-head { display: flex; gap: 10px; align-items: baseline; }
+.eq-head b { font-weight: bold; }
+.eq-head code { font-size: .8em; color: #666; }
+.eq-body { overflow-x: auto; padding: 2px 0; }
+.steps { list-style: none; padding: 0; }
+.steps li { display: flex; gap: 8px; margin: 8px 0; }
+.step-mark { flex: none; width: 1.4em; text-align: center; color: #666; }
+
+/* ---------------------------------------------------------------- etapa 3 */
+
+.binding { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.binding .sym { min-width: 3.5em; text-align: right; }
+.binding input[type="number"] { flex: 1; min-width: 0; font-family: monospace; }
+.binding input[type="range"] { flex: 1; min-width: 0; }
+.binding .u { font-size: .8em; color: #666; min-width: 3.5em; }
+
+table { border-collapse: collapse; }
+.results { width: 100%; }
+.results th, .results td { border-bottom: 1px solid #ddd; padding: 4px 6px; text-align: left; }
+.results .num { text-align: right; font-family: monospace; white-space: nowrap; }
+.results .expr { overflow-x: auto; max-width: 280px; }
+.results .u, .units { font-size: .8em; color: #666; }
+
+.plot { margin: 0 0 12px; }
+.plot figcaption { display: flex; justify-content: space-between; font-size: .85em; }
+.plot svg { width: 100%; height: auto; display: block; }
+.plot .zero { stroke: #ccc; }
+.plot .tick { fill: #666; font-size: 9px; }
+
+.fieldmap-tabs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.fieldmap-modes { display: inline-flex; gap: 2px; margin-left: auto; }
+canvas[data-map] { width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
+canvas[data-map].surface { cursor: grab; touch-action: none; }
+canvas[data-map].surface:active { cursor: grabbing; }
+
+.katex { font-size: 1em; }
+.katex-display { margin: 0; }
+
+/* ------------------------------------------------------- cuaderno de pasos */
+
+.usersteps { list-style: none; padding: 0; margin: 8px 0; }
+.usersteps > li { border-top: 1px solid #ddd; padding: 8px 0; }
+.step-bar { display: flex; gap: 6px; align-items: center; }
+.step-bar .step-n { flex: none; width: 1.6em; color: #666; }
+.step-title { flex: 1; min-width: 0; }
+.usersteps textarea { width: 100%; margin-top: 4px; font-family: monospace; }
+.step-preview { border-left: 3px solid #ddd; padding: 4px 0 4px 8px; margin-top: 4px; }
+.step-preview:empty { display: none; }
+.mathtext .katex { font-size: 1em; }
+
+.mathkeys { border-top: 1px solid #ddd; margin-top: 10px; padding-top: 8px; }
+.mathkeys-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.mathkeys-tabs button[aria-pressed="true"] { font-weight: bold; }
+.mathkeys-grid { display: flex; flex-wrap: wrap; gap: 3px; }
+.mathkeys-grid button { min-width: 2.4em; padding: 2px 6px; line-height: 1.4; }
+
+.suggestions { margin-top: 10px; }
+.suggestions summary { cursor: pointer; }
+.katex-fallback { color: #b00; }
