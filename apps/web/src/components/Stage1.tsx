@@ -2,13 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Dimension, DerivedBody, ProblemModel } from '@wf/schema';
 
 import {
-  freshId, makeBody, makeBoundary, makeField, makeSupport, paletteFor, type Module,
+  freshId, makeBody, makeBoundary, makeField, makeSupport, paletteFor, seededSymbols,
+  type Module,
 } from '../lib/elements';
 import { evalExpr } from '../lib/evalexpr';
 import { Inspector } from './Inspector';
 import { Palette } from './Palette';
 import { DEFAULT_ORBIT, Scene3D, type Orbit } from './Scene3D';
-import { DEFAULT_VIEW, WorldCanvas, type Selection, type View } from './WorldCanvas';
+import {
+  DEFAULT_VIEW, WorldCanvas, type CanvasMode, type Selection, type View,
+} from './WorldCanvas';
 
 interface Props {
   model: ProblemModel;
@@ -30,6 +33,19 @@ interface Props {
  * de la paleta, se hace clic en el mundo -- o sobre un cuerpo, si es algo que
  * se le cuelga encima -- y queda colocado. Despues todo se arrastra.
  */
+/**
+ * Que hace el dedo (o el mouse) sobre el canvas.
+ *
+ * En una tablet no hay cursor ni tecla Alt: el dedo tapa lo que toca y no hay
+ * forma de "pasar por encima" para ver que se va a agarrar. Por eso la accion
+ * se elige antes, explicita, como en cualquier herramienta de dibujo.
+ */
+const MODES: { id: CanvasMode; label: string; hint: string }[] = [
+  { id: 'select', label: 'Tocar', hint: 'Tocar elige; arrastrar mueve la vista' },
+  { id: 'move', label: 'Mover', hint: 'Arrastrar mueve lo que tocaste' },
+  { id: 'pan', label: 'Mano', hint: 'Todo mueve la vista; nada se toca' },
+];
+
 const DIMENSIONS: { id: Dimension; label: string; hint: string }[] = [
   { id: '1d', label: '1D', hint: 'Todo sobre un eje: la viga del libro' },
   { id: '2d', label: '2D', hint: 'Plano: cuerpos en cualquier direccion' },
@@ -44,6 +60,13 @@ export function Stage1({
   const [view, setView] = useState<View>(DEFAULT_VIEW);
   const [orbit, setOrbit] = useState<Orbit>(DEFAULT_ORBIT);
   const [showReactions, setShowReactions] = useState(true);
+  // Con el dedo se arranca en "Tocar": ahi un arrastre nunca desarma nada. Con
+  // mouse se arranca en "Mover", que es lo que un mouse ya sabe hacer.
+  const [mode, setMode] = useState<CanvasMode>(
+    () => (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+      ? 'select' : 'move'),
+  );
+  const [snap, setSnap] = useState(true);
 
   const palette = paletteFor(module);
 
@@ -133,6 +156,24 @@ export function Stage1({
     return () => window.removeEventListener('keydown', onKey);
   }, [remove]);
 
+  /** Da valor inicial a los simbolos que trae un elemento nuevo. */
+  const seed = useCallback((item: { target: string }, spot: {
+    at: number[]; bodyId?: string; parameter?: string;
+  }) => {
+    if (!pending) return;
+    const target = model.bodies.find((b) => b.id === spot.bodyId);
+    const element =
+      item.target === 'body' ? makeBody(pending, module, model, spot.at, dimension)
+      : item.target === 'field' && target && spot.parameter
+        ? makeField(pending, module, target, spot.parameter)
+      : null;
+    if (!element) return;
+    for (const [name, value] of seededSymbols(element)) {
+      // El que ya tiene valor no se toca: seria pisar lo que el usuario puso.
+      if (bindings[name] === undefined) onBinding(name, value);
+    }
+  }, [pending, module, model, dimension, bindings, onBinding]);
+
   const place = useCallback((spot: {
     at: number[]; bodyId?: string; parameter?: string;
   }) => {
@@ -145,6 +186,11 @@ export function Stage1({
     // React lo rechaza. El updater solo tiene que devolver el modelo nuevo.
     let created: string | null = null;
     if (item.target === 'body') created = makeBody(pending, module, model, spot.at, dimension).id;
+
+    // Los simbolos que estrena el elemento nacen con un valor razonable. Sin
+    // esto un cuerpo recien puesto se dibuja de un metro y una carga no se ve:
+    // el canvas dibuja con los valores, y todavia no hay ninguno.
+    seed(item, spot);
 
     onChange((m) => {
       if (item.target === 'body') {
@@ -182,7 +228,7 @@ export function Stage1({
     });
     setPending(null);
     if (created) setSelection({ target: 'body', id: created });
-  }, [pending, palette, module, model, dimension, onChange]);
+  }, [pending, palette, module, model, dimension, onChange, seed]);
 
   return (
     <div className="sheet cols-model">
@@ -200,8 +246,32 @@ export function Stage1({
               ))}
             </span>
           </div>
+          <div className="tools" role="group" aria-label="Accion del puntero">
+            {MODES.map((entry) => (
+              <button key={entry.id} type="button" title={entry.hint}
+                      aria-pressed={mode === entry.id}
+                      onClick={() => setMode(entry.id)}>
+                {entry.label}
+              </button>
+            ))}
+            <label title="Las posiciones caen en fracciones del dominio (L/4, 2L/3...)">
+              <input type="checkbox" checked={snap}
+                     onChange={(e) => setSnap(e.target.checked)} />
+              {' '}Enganchar
+            </label>
+            {pending && (
+              <button type="button" onClick={() => setPending(null)}>
+                Cancelar «{palette.find((i) => i.id === pending)?.label}»
+              </button>
+            )}
+            {selection && (
+              <button type="button" onClick={remove}>Quitar lo elegido</button>
+            )}
+          </div>
+
           {dimension === '3d' ? (
             <Scene3D
+              mode={mode}
               bodies={bodies}
               model={model}
               bindings={bindings}
@@ -217,6 +287,8 @@ export function Stage1({
             />
           ) : (
           <WorldCanvas
+            mode={mode}
+            snap={snap}
             bodies={bodies}
             model={model}
             module={module}
@@ -237,17 +309,20 @@ export function Stage1({
           <p className="hint">
             {dimension === '3d' ? (
               <>
-                Arrastra para girar la escena y la rueda acerca. Los cuerpos se apoyan
-                en el piso; para colgarles cargas y apoyos conviene pasar a 2D, donde el
-                clic sobre un cuerpo es inequivoco.
+                Arrastra para girar la escena; la rueda o dos dedos acercan. Los cuerpos
+                se apoyan en el piso; para colgarles cargas y apoyos conviene pasar a 2D,
+                donde el clic sobre un cuerpo es inequivoco.
               </>
             ) : (
               <>
-                {dimension === '1d' && 'Los cuerpos quedan sobre el eje horizontal. '}
-                Arrastra un cuerpo para moverlo
-                {dimension === '2d' && ' y su extremo para girarlo o estirarlo (engancha cada 15°; con Alt queda libre)'}.
-                Lo que se pone encima engancha a fracciones del dominio, para que el
-                planteo siga siendo simbolico. <kbd>Supr</kbd> quita lo seleccionado.
+                {dimension === '1d'
+                  ? 'Los cuerpos quedan sobre el eje horizontal: el extremo los estira, no los gira. '
+                  : 'El extremo de un cuerpo lo gira y lo estira (engancha cada 15°). '}
+                En «Mover», arrastrar un cuerpo lo mueve; en «Tocar», solo lo elige y el
+                arrastre mueve la vista. Dos dedos: acercar y desplazar.
+                Lo que se pone encima cae en fracciones del dominio mientras «Enganchar»
+                este puesto, para que el planteo siga siendo simbolico.{' '}
+                <kbd>Supr</kbd> quita lo seleccionado, igual que «Quitar lo elegido».
               </>
             )}
           </p>

@@ -1,6 +1,12 @@
 import type { Body, BoundaryCondition, ProblemModel } from '@wf/schema';
 
+import { BODY_LABELS, isRigidShape } from '../lib/elements';
 import type { Selection } from './WorldCanvas';
+
+/** Como se llama cada medida de una figura rigida en la ficha. */
+const SHAPE_LABELS = {
+  radius: 'Radio', height: 'Alto', mass: 'Masa', stiffness: 'Constante k',
+} as const;
 
 interface Props {
   model: ProblemModel;
@@ -38,6 +44,13 @@ export function Inspector({ model, selection, onChange, onDelete }: Props) {
     if (!body) return null;
     title = body.name || body.id;
     const isCable = body.analysis.dof === 'cable';
+    const rigid = isRigidShape(body.type);
+    // El dominio de un cuerpo va de 0 a un simbolo, pero ese simbolo no siempre
+    // es un largo: en un disco es el radio y en un bloque es el ancho. Llamarlo
+    // por su nombre evita tener que adivinar que mide.
+    const spanLabel = body.type === 'disc' || body.type === 'sphere' ? 'Radio'
+      : body.type === 'block' ? 'Ancho'
+      : rigid ? 'Largo' : 'Dominio x ∈ [0, ...]';
     const origin = body.domain.embedding.type === 'straight'
       ? (body.domain.embedding.origin as unknown as [string, string, string])
       : ['0', '0', '0'];
@@ -50,7 +63,7 @@ export function Inspector({ model, selection, onChange, onDelete }: Props) {
                  onChange={(e) => patchBody(body.id, (b) => ({ ...b, name: e.target.value }))} />
         </label>
         <label>
-          Dominio x ∈ [0, ...]
+          {spanLabel}
           <input value={body.domain.end}
                  onChange={(e) => patchBody(body.id, (b) => ({
                    ...b, domain: { ...b.domain, end: e.target.value },
@@ -74,7 +87,27 @@ export function Inspector({ model, selection, onChange, onDelete }: Props) {
           </span>
         </label>
 
-        {model.module === 'statics' && (
+        {rigid && (
+          <>
+            <p className="hint">
+              {BODY_LABELS[body.type] ?? body.type}: se arma, se mide y se anota. El motor
+              todavia no lo resuelve solo — su equilibrio es otra teoria, no la de vigas.
+            </p>
+            {(['radius', 'height', 'mass', 'stiffness'] as const)
+              .filter((key) => body.shape?.[key] !== null && body.shape?.[key] !== undefined)
+              .map((key) => (
+                <label key={key}>
+                  {SHAPE_LABELS[key]}
+                  <input value={body.shape?.[key] ?? ''}
+                         onChange={(e) => patchBody(body.id, (b) => (!b.shape ? b : {
+                           ...b, shape: { ...b.shape, [key]: e.target.value },
+                         }))} />
+                </label>
+              ))}
+          </>
+        )}
+
+        {model.module === 'statics' && !rigid && (
           <label>
             Tipo de cuerpo
             <select
@@ -117,7 +150,7 @@ export function Inspector({ model, selection, onChange, onDelete }: Props) {
           </label>
         )}
 
-        {model.module === 'statics' && !isCable && (
+        {model.module === 'statics' && !isCable && !rigid && (
           <label>
             Modo de analisis
             <select value={body.analysis.mode}

@@ -289,16 +289,52 @@ class Analysis(_Base):
     dof: Literal["1d_beam", "cable"] = "1d_beam"
 
 
+#: Cuerpos que no son una curva con carga repartida a lo largo de ``x``.
+#:
+#: Un disco, una esfera o un bloque no tienen ``q(x)``: tienen radio, lado y
+#: masa. El motor no los resuelve -- resolverlos es otra teoria, no la de
+#: vigas -- pero el ejercicio del libro los tiene, y hay que poder ponerlos,
+#: verlos, medirlos y anotar el procedimiento sobre ellos.
+RIGID_SHAPES = frozenset({"disc", "sphere", "block", "rod", "ideal_cable", "spring"})
+
+
+class ShapeSpec(_Base):
+    """Medidas de un cuerpo rigido idealizado.
+
+    Todo opcional: un cable ideal no tiene ni radio ni masa (es
+    inextensible, sin peso y de espesor nulo), y un disco no tiene lado.
+    """
+
+    #: Radio de un disco, una polea o una esfera.
+    radius: Expr | None = None
+    #: Alto de un bloque. El ancho es el largo del dominio.
+    height: Expr | None = None
+    #: Masa del cuerpo. Nula, por definicion, en un cable ideal.
+    mass: Expr | None = None
+    #: Constante de un resorte.
+    stiffness: Expr | None = None
+
+
 class Body(_Base):
     id: str
     name: str = ""
-    type: Literal["beam", "bar", "cable", "disc", "charged_line", "wire"] = "beam"
+    type: Literal[
+        "beam", "bar", "cable", "charged_line", "wire",
+        # Rigidos idealizados: se arman y se anotan, todavia no se resuelven.
+        "disc", "sphere", "block", "rod", "ideal_cable", "spring",
+    ] = "beam"
     domain: Domain1D = Field(default_factory=Domain1D)
     fields: list[BodyField] = Field(default_factory=list)
     constitutive: Constitutive = Field(default_factory=Constitutive)
     analysis: Analysis = Field(default_factory=Analysis)
     #: Solo para cuerpos tipo cable.
     cable: CableSpec | None = None
+    #: Solo para los rigidos idealizados de :data:`RIGID_SHAPES`.
+    shape: ShapeSpec | None = None
+
+    @property
+    def is_rigid_shape(self) -> bool:
+        return self.type in RIGID_SHAPES
 
 
 # --------------------------------------------------------------------------

@@ -52,7 +52,45 @@ label { display: block; }
 
 /* ------------------------------------------------------------------ canvas */
 
+/* `touch-action: none` es lo que hace que el canvas sea usable con el dedo.
+   Sin esto el navegador se queda con el gesto antes de que llegue aca: tocar un
+   elemento y moverlo desplaza la pagina, y dos dedos le hacen zoom al documento
+   entero en vez de a la escena. */
+.canvas, .scene {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .canvas { width: 100%; height: auto; display: block; border: 1px solid var(--c-rule); background: #fff; }
+
+/* Area de contacto de los tiradores. Un circulo de 7 px se apunta bien con el
+   mouse y no se acierta nunca con el dedo: el borde transparente le da el
+   tamano de una yema sin cambiar lo que se ve. */
+.canvas .handle { stroke: transparent; stroke-width: 18; pointer-events: all; }
+.canvas .hit { stroke: transparent; stroke-width: 24; fill: none; pointer-events: stroke; }
+
+/* Figuras rigidas: las que se arman y se anotan, todavia sin resolver. */
+.canvas .shape { fill: none; stroke: #000; stroke-width: 2; }
+.canvas .shape.block { fill: rgba(0, 0, 0, .06); }
+.canvas .shape .hub { fill: #000; stroke: none; }
+.canvas .shape .radius { stroke: var(--c-rule); stroke-width: 1; stroke-dasharray: 3 3; }
+.canvas .shape.ideal-cable line { stroke-width: 1; }
+.canvas .shape.ideal-cable circle { fill: #000; stroke: none; }
+.canvas .shape.rod .rod-axis { stroke-width: 4; }
+.canvas .shape.rod circle { fill: #fff; stroke: #000; stroke-width: 1.5; }
+.canvas .shape.spring { stroke-width: 2; }
+
+/* Sin esto iOS espera 300 ms por si el toque era un doble-toque para acercar,
+   y cada boton se siente pegajoso. */
+button, select, input[type='checkbox'], .tools label { touch-action: manipulation; }
+
+/* Los botones del teclado matematico se tocan con el dedo: sin esto, iOS
+   interpreta el toque como seleccion de texto o doble-toque para acercar. */
+.mathkeys-grid button { touch-action: manipulation; }
+
+/* Selector de accion: que hace el dedo. */
+.tools { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .3rem 0; }
+.tools button[aria-pressed='true'] { font-weight: 700; }
 .canvas .beam { stroke: #000; stroke-width: 3; }
 .canvas .cable { fill: none; stroke: var(--c-defl); stroke-width: 3; }
 .canvas .lab { fill: #333; font-size: 11px; }
@@ -211,4 +249,9 @@ table { border-collapse: collapse; }
 .scene3 .probe3 text { fill: var(--c-defl); font-size: 10px; }
 .scene3 marker path { fill: currentColor; }
 .scene3 { cursor: grab; touch-action: none; }
+.scene3 .shape3 { fill: none; stroke: #000; stroke-width: 2; }
+.scene3 .shape3.block { fill: rgba(0, 0, 0, .08); }
+.scene3 .shape3.ideal_cable { stroke-width: 1; }
+.scene3 .shape3.rod { stroke-width: 4; }
+.scene3 .shape3.sel { stroke: var(--c-shear); }
 .scene3:active { cursor: grabbing; }

@@ -297,6 +297,13 @@ def derive_em_body(body, probes, *, emit_ast: bool = False) -> dict:
     }
 
 
+#: Como nombrar cada figura rigida cuando hay que explicar que no se resuelve.
+SHAPE_NAMES = {
+    "disc": "Disco", "sphere": "Esfera", "block": "Bloque",
+    "rod": "Barra rigida", "ideal_cable": "Cable ideal", "spring": "Resorte",
+}
+
+
 def derive_payload(model_json: str, *, emit_ast: bool = False) -> dict:
     """Deriva todo el problema. Un cuerpo que falla no tumba a los demas."""
     model = ProblemModel.model_validate_json(model_json)
@@ -305,6 +312,14 @@ def derive_payload(model_json: str, *, emit_ast: bool = False) -> dict:
     errors: list[dict] = []
     for body in model.bodies:
         try:
+            if body.is_rigid_shape:
+                # Un disco o un bloque no tienen q(x): su equilibrio es otra
+                # teoria, no la de vigas. Mandarlos igual al solver daria un
+                # resultado inventado, que es peor que no dar ninguno.
+                raise NotImplementedError(
+                    f"{SHAPE_NAMES.get(body.type, body.type)}: todavia no se resuelve solo. "
+                    "Se puede armar, medir y escribir el procedimiento a mano."
+                )
             if model.module == "thermo":
                 bodies.append(derive_thermo_body(
                     body, model.boundaries_for(body.id), emit_ast=emit_ast))

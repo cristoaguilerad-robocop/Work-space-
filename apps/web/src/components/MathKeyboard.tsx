@@ -48,10 +48,13 @@ export function MathKeyboard({ onInsert }: Props) {
             type="button"
             title={key.name ?? key.latex}
             aria-label={key.name ?? key.latex}
-            // onMouseDown en vez de onClick: al hacer click el textarea pierde
+            // onPointerDown en vez de onClick: al hacer click el textarea pierde
             // el foco antes de que corra el handler y se pierde la posicion del
-            // cursor, que es justo donde hay que insertar.
-            onMouseDown={(event) => { event.preventDefault(); onInsert(key); }}
+            // cursor, que es justo donde hay que insertar. Con puntero en vez de
+            // mouse anda igual con el dedo, donde el evento de mouse llega
+            // tarde -- despues de que el teclado ya se robo el foco -- o no
+            // llega.
+            onPointerDown={(event) => { event.preventDefault(); onInsert(key); }}
           >
             <KeyLabel label={key.label} />
           </button>

@@ -3,7 +3,7 @@ import type { DerivedBody, ProblemModel } from '@wf/schema';
 
 import { value } from '../lib/evaluate';
 import { evalExpr } from '../lib/evalexpr';
-import type { Selection } from './WorldCanvas';
+import { capture, type CanvasMode, type Selection } from './WorldCanvas';
 
 export interface Orbit {
   yaw: number;
@@ -31,6 +31,8 @@ interface Props {
   orbit: Orbit;
   onOrbit: (orbit: Orbit) => void;
   showReactions: boolean;
+  /** Que hace un dedo sobre un cuerpo. Mismo selector que en 2D. */
+  mode?: CanvasMode;
   interactive?: boolean;
 }
 
@@ -52,7 +54,8 @@ type P3 = [number, number, number];
  */
 export function Scene3D({
   bodies, model, bindings, selection, onSelect, onChange,
-  pending, pendingTarget, onPlace, orbit, onOrbit, showReactions, interactive = true,
+  pending, pendingTarget, onPlace, orbit, onOrbit, showReactions,
+  mode = 'move', interactive = true,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<{ kind: 'orbit' | 'body'; id?: string; from: [number, number] } | null>(null);
@@ -183,13 +186,42 @@ export function Scene3D({
     const { body, derived, origin, axis, perp, length, at } = spot;
     const selected = selection?.target === 'body' && selection.id === body.id;
 
-    segment(origin, at(length), `beam3${selected ? ' sel' : ''}`, `b${body.id}`,
-      interactive ? (event) => {
-        if (pending) return;
+    const grab = interactive ? (event: React.PointerEvent) => {
+        if (pending || mode === 'pan') return;
         event.stopPropagation();
         onSelect({ target: 'body', id: body.id });
-        setDrag({ kind: 'body', id: body.id, from: pointerAt(event) });
-      } : undefined);
+        // En modo tocar el arrastre gira la escena: mover un cuerpo por el piso
+        // con el dedo, mientras se busca el angulo desde donde mirarlo, es
+        // justo lo que uno no queria hacer.
+        if (mode === 'move') setDrag({ kind: 'body', id: body.id, from: pointerAt(event) });
+      } : undefined;
+
+    // Las figuras rigidas se dibujan con su forma. Un disco proyectado es una
+    // elipse; se aproxima con un circulo del radio proyectado, que para armar
+    // y mirar alcanza y no cuesta una libreria de 3D.
+    const klass = `shape3 ${body.type}${selected ? ' sel' : ''}`;
+    if (body.type === 'disc' || body.type === 'sphere') {
+      const c = project(origin);
+      const rim = project(at(length));
+      push(c.depth, (
+        <circle key={`b${body.id}`} className={klass} cx={c.x} cy={c.y}
+                r={Math.max(3, Math.hypot(rim.x - c.x, rim.y - c.y))}
+                onPointerDown={grab} />
+      ));
+    } else if (body.type === 'block') {
+      const height = evalExpr(body.shape?.height ?? '', bindings, 0.6);
+      const up = (q: P3): P3 => [q[0], q[1] + height, q[2]];
+      const corners = [origin, at(length), up(at(length)), up(origin)].map(project);
+      push(Math.min(...corners.map((q) => q.depth)), (
+        <polygon key={`b${body.id}`} className={klass} onPointerDown={grab}
+                 points={corners.map((q) => `${q.x},${q.y}`).join(' ')} />
+      ));
+    } else {
+      segment(origin, at(length),
+        body.type === 'ideal_cable' || body.type === 'spring' || body.type === 'rod'
+          ? klass : `beam3${selected ? ' sel' : ''}`,
+        `b${body.id}`, grab);
+    }
 
     const mid = project(at(length / 2));
     push(mid.depth, (
@@ -282,9 +314,26 @@ export function Scene3D({
 
   // ------------------------------------------------------------------ eventos
 
+  /** Los dedos apoyados. Dos son gesto de vista: pellizcar acerca. */
+  const pointers = useRef(new Map<number, [number, number]>());
+  const pinch = useRef<number | null>(null);
+
+  const twoFingers = () => pointers.current.size >= 2;
+  const spread = () => {
+    const [a, b] = [...pointers.current.values()];
+    return Math.hypot(a[0] - b[0], a[1] - b[1]);
+  };
+
   const onPointerDown = (event: React.PointerEvent) => {
     if (!interactive) return;
     const [sx, sy] = pointerAt(event);
+    pointers.current.set(event.pointerId, [sx, sy]);
+    capture(event);
+    if (twoFingers()) {
+      setDrag(null);
+      pinch.current = spread();
+      return;
+    }
     if (pending) {
       const world = toGround(sx, sy);
       if (pendingTarget === 'body' || pendingTarget === 'probe') onPlace({ at: world });
@@ -297,8 +346,24 @@ export function Scene3D({
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
-    if (!drag) return;
     const [sx, sy] = pointerAt(event);
+    if (pointers.current.has(event.pointerId)) pointers.current.set(event.pointerId, [sx, sy]);
+
+    if (twoFingers()) {
+      // Sin rueda no hay otra forma de acercarse en una tablet.
+      const now = spread();
+      const before = pinch.current;
+      pinch.current = now;
+      if (before && before > 0) {
+        onOrbit({
+          ...orbit,
+          scale: Math.max(10, Math.min(400, orbit.scale * (now / before))),
+        });
+      }
+      return;
+    }
+
+    if (!drag) return;
     if (drag.kind === 'orbit') {
       onOrbit({
         ...orbit,
@@ -334,6 +399,12 @@ export function Scene3D({
     setDrag({ ...drag, from: [sx, sy] });
   };
 
+  const endPointer = (event: React.PointerEvent) => {
+    pointers.current.delete(event.pointerId);
+    if (!twoFingers()) pinch.current = null;
+    setDrag(null);
+  };
+
   return (
     <svg
       ref={svgRef}
@@ -341,8 +412,8 @@ export function Scene3D({
       viewBox={`0 0 ${W} ${H}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={() => setDrag(null)}
-      onPointerLeave={() => setDrag(null)}
+      onPointerUp={endPointer}
+      onPointerCancel={endPointer}
       onWheel={(event) => interactive && onOrbit({
         ...orbit,
         scale: Math.max(10, Math.min(400, orbit.scale * Math.exp(-event.deltaY * 0.0015))),
@@ -358,7 +429,7 @@ export function Scene3D({
       </defs>
       {pieces.map((piece) => piece.node)}
       <text x={10} y={16} className="lab3">
-        arrastra para girar · rueda: zoom · se construye sobre el piso (y = 0)
+        arrastra para girar · rueda o dos dedos: zoom · se construye sobre el piso (y = 0)
       </text>
       {placed.length === 0 && (
         <text x={W / 2} y={H / 2} textAnchor="middle" className="lab3">

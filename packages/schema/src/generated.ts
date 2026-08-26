@@ -4,7 +4,8 @@ export type Module = "statics" | "em" | "thermo";
 export type Title = string;
 export type Id = string;
 export type Name = string;
-export type Type = "beam" | "bar" | "cable" | "disc" | "charged_line" | "wire";
+export type Type =
+  "beam" | "bar" | "cable" | "charged_line" | "wire" | "disc" | "sphere" | "block" | "rod" | "ideal_cable" | "spring";
 export type Kind = "curve1d";
 export type Parameter = string;
 export type Start = string;
@@ -115,6 +116,10 @@ export type Mode1 = "sag" | "tension";
 export type Sag = string | null;
 export type At1 = string | null;
 export type H1 = string | null;
+export type Radius1 = string | null;
+export type Height = string | null;
+export type Mass = string | null;
+export type Stiffness = string | null;
 export type Bodies = Body[];
 export type Id4 = string;
 export type BodyId = string;
@@ -160,6 +165,7 @@ export interface Body {
   constitutive: Constitutive;
   analysis: Analysis;
   cable: CableSpec | null;
+  shape: ShapeSpec | null;
 }
 /**
  * Dominio parametrico de un cuerpo idealizado como curva.
@@ -336,6 +342,18 @@ export interface CableSpec {
   sag: Sag;
   at: At1;
   H: H1;
+}
+/**
+ * Medidas de un cuerpo rigido idealizado.
+ *
+ * Todo opcional: un cable ideal no tiene ni radio ni masa (es
+ * inextensible, sin peso y de espesor nulo), y un disco no tiene lado.
+ */
+export interface ShapeSpec {
+  radius: Radius1;
+  height: Height;
+  mass: Mass;
+  stiffness: Stiffness;
 }
 /**
  * Anclado a ``(body_id, at)`` en coordenada del dominio, nunca a pixeles.

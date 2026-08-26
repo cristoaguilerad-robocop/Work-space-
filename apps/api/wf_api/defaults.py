@@ -61,6 +61,14 @@ _PREFIXED: list[tuple[re.Pattern[str], tuple[float, str, str]]] = [
     (re.compile(r"^L\d+$"), (4.0, "m", "Longitud del cuerpo")),
     (re.compile(r"^w\d+$"), (1000.0, "N/m", "Intensidad de carga distribuida")),
     (re.compile(r"^P\d+$"), (5000.0, "N", "Carga puntual")),
+    # Figuras rigidas: radio, lado, masa y constante de resorte. Mismos valores
+    # que sugiere el canvas al colocarlas (apps/web/src/lib/elements.ts), asi
+    # que un cuerpo puesto sin backend no cambia de tamano cuando lo hay.
+    (re.compile(r"^R\d+$"), (0.5, "m", "Radio")),
+    (re.compile(r"^a\d+$"), (1.0, "m", "Lado del bloque")),
+    (re.compile(r"^b\d+$"), (0.6, "m", "Alto del bloque")),
+    (re.compile(r"^m\d+$"), (2.0, "kg", "Masa")),
+    (re.compile(r"^k\d+$"), (1000.0, "N/m", "Constante del resorte")),
 ]
 
 

@@ -38,10 +38,32 @@ interface Props {
   view: View;
   onView: (view: View) => void;
   showReactions: boolean;
+  /** Que hace un dedo (o el mouse) sobre un elemento. Ver `CanvasMode`. */
+  mode?: CanvasMode;
+  /** Si las posiciones enganchan a fracciones del dominio. Alt lo invierte. */
+  snap?: boolean;
   /** Modo 1D: los cuerpos viven sobre el eje horizontal y no se giran. */
   lockToAxis?: boolean;
   interactive?: boolean;
 }
+
+/**
+ * Que significa arrastrar.
+ *
+ * En un mouse el modo casi no importa: se ve el cursor, se apunta fino y se
+ * puede soltar sin querer. En una tablet si: el dedo tapa lo que toca, y un
+ * arrastre que queria mover la vista termina moviendo una carga. Por eso el
+ * modo es explicito y se elige antes, como en cualquier herramienta de dibujo.
+ *
+ * - `select`: tocar elige; arrastrar mueve la VISTA, nunca el elemento.
+ * - `move`:   arrastrar mueve el elemento tocado.
+ * - `pan`:    todo mueve la vista; nada se selecciona ni se modifica.
+ */
+export type CanvasMode = 'select' | 'move' | 'pan';
+
+/** Zoom minimo y maximo, en pixeles por metro. */
+const MIN_SCALE = 8;
+const MAX_SCALE = 800;
 
 const W = 900;
 const H = 520;
@@ -53,6 +75,22 @@ const ANGLE_SNAP = 15;
 const PICK_PX = 34;
 
 export type Vec = [number, number];
+
+/**
+ * Retiene el puntero en el elemento que empezo el gesto.
+ *
+ * Sin esto, mover el dedo fuera del canvas -- o soltarlo sobre otro elemento --
+ * corta el arrastre a la mitad. Puede fallar (un puntero que el navegador ya
+ * dio por terminado), y fallar aca no vale romper el gesto entero.
+ */
+export function capture(event: React.PointerEvent): void {
+  try {
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+  } catch {
+    // Sin captura el arrastre sigue funcionando mientras el dedo no se salga.
+  }
+}
+
 
 const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1]];
 const add = (a: Vec, b: Vec): Vec => [a[0] + b[0], a[1] + b[1]];
@@ -93,7 +131,7 @@ type FieldSpec = MechanicalLoad | ScalarSource;
 export function WorldCanvas({
   bodies, model, module, bindings, selection, onSelect, onChange, onBinding,
   pending, pendingTarget, onPlace, view, onView, showReactions,
-  lockToAxis = false, interactive = true,
+  mode = 'move', snap = true, lockToAxis = false, interactive = true,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -198,8 +236,12 @@ export function WorldCanvas({
     if (!spot) return;
 
     const delta = sub(endpoint, spot.origin);
-    const distance = norm(delta);
-    if (distance < 1e-6) return;
+    // En 1D el largo es la proyeccion sobre el eje, no la distancia al dedo:
+    // con la distancia, levantar el dedo del eje estiraria el cuerpo -- se ve
+    // como si girara -- y arrastrarlo hacia atras lo daria vuelta. En una sola
+    // dimension eso no existe.
+    const distance = lockToAxis ? delta[0] : norm(delta);
+    if (distance < 0.05) return;
 
     let angle = lockToAxis ? 0 : Math.atan2(delta[1], delta[0]);
     if (snap && !lockToAxis) {
@@ -280,10 +322,52 @@ export function WorldCanvas({
 
   // ------------------------------------------------------------------ punteros
 
+  /**
+   * Los dedos que estan tocando ahora mismo.
+   *
+   * Con dos, el gesto es de vista -- pellizcar para acercar, arrastrar para
+   * mover -- y cualquier arrastre de elemento que estuviera en curso se
+   * cancela. Sin esto, apoyar el segundo dedo mueve la carga que sostenia el
+   * primero.
+   */
+  const pointers = useRef(new Map<number, Vec>());
+  const pinch = useRef<{ distance: number; center: Vec } | null>(null);
+  /** Si el gesto que esta llegando al canvas ya paso por un elemento. */
+  const hitElement = useRef(false);
+
+  /** Acerca dejando quieto el punto del mundo que esta bajo el dedo. */
+  const zoomAbout = (screen: Vec, factor: number) => {
+    const anchor = toWorld(screen);
+    const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * factor));
+    onView({
+      scale,
+      cx: anchor[0] - (screen[0] - W / 2) / scale,
+      cy: anchor[1] + (screen[1] - H / 2) / scale,
+    });
+  };
+
+  const twoFingers = (): boolean => pointers.current.size >= 2;
+
+  const gesture = () => {
+    const [a, b] = [...pointers.current.values()];
+    return { distance: norm(sub(a, b)), center: mul(add(a, b), 0.5) };
+  };
+
   const onPointerDown = (event: React.PointerEvent) => {
     if (!interactive) return;
     const screen = pointerAt(event);
     const world = toWorld(screen);
+    pointers.current.set(event.pointerId, screen);
+    capture(event);
+
+    if (twoFingers()) {
+      // Dos dedos son siempre gesto de vista: se abandona lo que se estuviera
+      // arrastrando, y no se coloca nada aunque haya herramienta armada.
+      setDrag(null);
+      setGhost(null);
+      pinch.current = gesture();
+      return;
+    }
 
     if (pending) {
       if (pendingTarget === 'body' || pendingTarget === 'probe') {
@@ -295,7 +379,7 @@ export function WorldCanvas({
             at: world,
             bodyId: hit.spot.body.id,
             parameter: positionExpression(
-              hit.t / hit.spot.length, hit.spot.body.domain.end, !event.altKey,
+              hit.t / hit.spot.length, hit.spot.body.domain.end, snap !== event.altKey,
             ),
           });
         }
@@ -303,13 +387,36 @@ export function WorldCanvas({
       return;
     }
 
-    onSelect(null);
+    // El fondo deselecciona; un elemento, no: en modo tocar el evento llega
+    // igual hasta aca despues de haber elegido algo.
+    if (hitElement.current) hitElement.current = false;
+    else onSelect(null);
     setDrag({ kind: 'pan', from: screen });
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
-    if (!drag) return;
     const screen = pointerAt(event);
+    if (pointers.current.has(event.pointerId)) pointers.current.set(event.pointerId, screen);
+
+    if (twoFingers()) {
+      const now = gesture();
+      const before = pinch.current;
+      pinch.current = now;
+      if (before && before.distance > 0) {
+        const moved = sub(now.center, before.center);
+        onView({
+          ...view,
+          cx: view.cx - moved[0] / view.scale,
+          cy: view.cy + moved[1] / view.scale,
+        });
+        // El zoom se aplica despues del desplazamiento, anclado al centro del
+        // pellizco: asi el punto que uno pellizca no se le escapa de los dedos.
+        zoomAbout(now.center, now.distance / before.distance);
+      }
+      return;
+    }
+
+    if (!drag) return;
     const world = toWorld(screen);
 
     if (drag.kind === 'pan') {
@@ -323,7 +430,7 @@ export function WorldCanvas({
       setDrag({ ...drag, grab: world });
       return;
     }
-    if (drag.kind === 'body-end') { reshapeBody(drag.id, world, !event.altKey); return; }
+    if (drag.kind === 'body-end') { reshapeBody(drag.id, world, snap !== event.altKey); return; }
     if (drag.kind === 'probe') {
       onChange((m) => ({
         ...m,
@@ -338,17 +445,20 @@ export function WorldCanvas({
     if (!spot) return;
     const rel = sub(world, spot.origin);
     const t = Math.max(0, Math.min(spot.length, rel[0] * spot.axis[0] + rel[1] * spot.axis[1]));
-    setParametric(drag.target, drag.id, drag.bodyId, drag.part, t, !event.altKey);
+    setParametric(drag.target, drag.id, drag.bodyId, drag.part, t, snap !== event.altKey);
   };
 
-  const endDrag = () => { setDrag(null); setGhost(null); };
+  const endPointer = (event: React.PointerEvent) => {
+    pointers.current.delete(event.pointerId);
+    if (!twoFingers()) pinch.current = null;
+    setDrag(null);
+    setGhost(null);
+  };
 
   const onWheel = (event: React.WheelEvent) => {
     if (!interactive) return;
-    onView({
-      ...view,
-      scale: Math.max(12, Math.min(600, view.scale * Math.exp(-event.deltaY * 0.0015))),
-    });
+    zoomAbout(pointerAt(event as unknown as React.PointerEvent),
+              Math.exp(-event.deltaY * 0.0015));
   };
 
   const start = (next: Drag, pick?: Selection) => (event: React.PointerEvent) => {
@@ -358,10 +468,25 @@ export function WorldCanvas({
     // imposible: el propio cuerpo se comeria el clic antes de que llegue al
     // colocador. Se deja pasar y lo atiende el canvas.
     if (pending) return;
-    event.stopPropagation();
-    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-    setDrag(next);
+    // En modo mano el elemento no existe para el puntero: el gesto es de vista.
+    if (mode === 'pan') return;
+
     if (pick) onSelect(pick);
+    if (mode === 'select') {
+      // Tocar elige, y nada mas: el arrastre sigue siendo de la vista, que es
+      // lo que uno suele querer cuando el dedo tapa medio elemento. El evento
+      // NO se frena -- asi el canvas arranca el desplazamiento -- pero se deja
+      // dicho que ya hubo elemento, para que no borre la seleccion recien
+      // hecha al recibirlo.
+      hitElement.current = true;
+      return;
+    }
+    event.stopPropagation();
+    capture(event);
+    // El punto de agarre es DONDE se toco, no el origen del cuerpo. Con el
+    // origen, agarrar una viga por el medio la teletransporta en el primer
+    // movimiento: el cuerpo salta para que su punta caiga bajo el dedo.
+    setDrag(next.kind === 'body' ? { ...next, grab: toWorld(pointerAt(event)) } : next);
   };
 
   const isSelected = (target: Selection['target'], id: string) =>
@@ -374,8 +499,11 @@ export function WorldCanvas({
       viewBox={`0 0 ${W} ${H}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerLeave={endDrag}
+      onPointerUp={endPointer}
+      // `pointercancel` es lo que manda el sistema cuando decide que el gesto
+      // era suyo. Sin atenderlo, el arrastre queda pegado y el elemento sigue
+      // al dedo aunque ya no lo estes tocando.
+      onPointerCancel={endPointer}
       onWheel={onWheel}
       role="application"
       aria-label="Canvas del sistema"
@@ -586,24 +714,90 @@ function BodyLayer({
         );
       })}
 
-      {/* El cuerpo. Un cable se dibuja con su curva, que es el resultado. */}
-      {derived?.shape ? (() => {
-        const shape = compile(derived.shape.js);
-        const pts: string[] = [];
-        for (let i = 0; i <= 48; i += 1) {
-          const t = (i / 48) * length;
-          const y = shape(t, bindings);
-          if (!Number.isFinite(y)) continue;
-          const [px, py] = toScreen(add(at(t), mul(perp, y)));
-          pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+      {/* El cuerpo. Un cable se dibuja con su curva, que es el resultado; las
+          figuras rigidas, con su forma, que es lo unico que tienen. */}
+      {(() => {
+        const grab = start({ kind: 'body', id, grab: origin }, { target: 'body', id });
+
+        if (derived?.shape) {
+          const shape = compile(derived.shape.js);
+          const pts: string[] = [];
+          for (let i = 0; i <= 48; i += 1) {
+            const t = (i / 48) * length;
+            const y = shape(t, bindings);
+            if (!Number.isFinite(y)) continue;
+            const [px, py] = toScreen(add(at(t), mul(perp, y)));
+            pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+          }
+          return <polyline className="cable grabbable" points={pts.join(' ')}
+                           onPointerDown={grab} />;
         }
-        return <polyline className="cable grabbable" points={pts.join(' ')}
-                         onPointerDown={start({ kind: 'body', id, grab: origin },
-                                              { target: 'body', id })} />;
-      })() : (
-        <line x1={ox} y1={oy} x2={ex} y2={ey} className="beam body-axis grabbable"
-              onPointerDown={start({ kind: 'body', id, grab: origin }, { target: 'body', id })} />
-      )}
+
+        // Pixeles por metro, leidos del propio dibujo: el largo del cuerpo en
+        // pantalla dividido por su largo en el mundo. Asi el glifo no necesita
+        // saber nada de la vista.
+        const pxPerM = Math.hypot(ex - ox, ey - oy) / (length || 1);
+        const screen = (t: number, off: number) => toScreen(add(at(t), mul(perp, off))).join(',');
+
+        if (body.type === 'disc' || body.type === 'sphere') {
+          // El radio ES el dominio: el extremo del cuerpo cae sobre el borde, y
+          // por eso arrastrar el tirador agranda la figura.
+          const r = Math.max(Math.hypot(ex - ox, ey - oy), 3);
+          return (
+            <g className={`shape ${body.type} grabbable`} onPointerDown={grab}>
+              <circle cx={ox} cy={oy} r={r} />
+              {body.type === 'sphere' && <ellipse cx={ox} cy={oy} rx={r} ry={r * 0.3} />}
+              {body.type === 'disc' && <circle className="hub" cx={ox} cy={oy} r={3} />}
+              <line className="radius" x1={ox} y1={oy} x2={ex} y2={ey} />
+            </g>
+          );
+        }
+
+        if (body.type === 'block') {
+          const height = evalExpr(body.shape?.height ?? '', bindings, 0.6);
+          return (
+            <polygon className="shape block grabbable" onPointerDown={grab}
+                     points={[screen(0, 0), screen(length, 0),
+                              screen(length, height), screen(0, height)].join(' ')} />
+          );
+        }
+
+        if (body.type === 'spring') {
+          const amplitude = Math.min(0.18 * length, 16 / (pxPerM || 1));
+          const coils = 8;
+          const pts = [screen(0, 0)];
+          for (let i = 1; i <= coils; i += 1) {
+            pts.push(screen(((i - 0.5) / coils) * length, i % 2 ? amplitude : -amplitude));
+          }
+          pts.push(screen(length, 0));
+          return <polyline className="shape spring grabbable" points={pts.join(' ')}
+                           onPointerDown={grab} />;
+        }
+
+        if (body.type === 'ideal_cable') {
+          return (
+            <g className="shape ideal-cable grabbable" onPointerDown={grab}>
+              {/* Un cable ideal no tiene espesor, y un trazo de un pixel no se
+                  puede tocar con el dedo. La linea invisible es el area de
+                  contacto; la visible, el cuerpo. */}
+              <line className="hit" x1={ox} y1={oy} x2={ex} y2={ey} />
+              <line x1={ox} y1={oy} x2={ex} y2={ey} />
+              <circle cx={ox} cy={oy} r={3} />
+              <circle cx={ex} cy={ey} r={3} />
+            </g>
+          );
+        }
+
+        const rigid = body.type === 'rod';
+        return (
+          <g className={`grabbable${rigid ? ' shape rod' : ''}`} onPointerDown={grab}>
+            <line className="hit" x1={ox} y1={oy} x2={ex} y2={ey} />
+            <line x1={ox} y1={oy} x2={ex} y2={ey}
+                  className={rigid ? 'rod-axis' : 'beam body-axis'} />
+            {rigid && <><circle cx={ox} cy={oy} r={4} /><circle cx={ex} cy={ey} r={4} /></>}
+          </g>
+        );
+      })()}
 
       {interactive && (
         <circle className="handle body-end" cx={ex} cy={ey} r={7}
