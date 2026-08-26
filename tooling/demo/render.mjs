@@ -23,39 +23,10 @@ const cases = JSON.parse(readFileSync(join(HERE, 'payloads.json'), 'utf8'));
 
 const usedFonts = new Set();
 
-function tex(latex, display) {
-  if (!latex) return { src: '', html: '' };
-  return {
-    src: latex,
-    html: katex.renderToString(latex, {
-      displayMode: display,
-      throwOnError: false,
-      output: 'html',
-    }),
-  };
-}
-
-/**
- * Rinde cada expresion UNA sola vez, en el modo en que la pagina la va a usar.
- * Renderizar inline y display para todo duplicaba el peso del HTML sin que se
- * llegara a mostrar la mitad.
- */
-const DISPLAY_KEYS = new Set(['equations', 'steps']);
-
-function renderAll(node, display = false) {
-  if (Array.isArray(node)) return node.map((item) => renderAll(item, display));
-  if (node && typeof node === 'object') {
-    const out = {};
-    for (const [key, value] of Object.entries(node)) {
-      if (key === 'latex' && typeof value === 'string') out[key] = tex(value, display);
-      else out[key] = renderAll(value, DISPLAY_KEYS.has(key) ? true : display);
-    }
-    return out;
-  }
-  return node;
-}
-
-const rendered = renderAll(cases);
+// Ya no se pre-renderiza nada: la pagina lleva KaTeX y rinde en el navegador.
+// El cambio no es solo de peso -- aunque baja de casi 7 MB a algo mas de uno --
+// sino que es lo que permite que el usuario ESCRIBA matematica y la vea. Un
+// cuaderno donde solo se pueden leer formulas ajenas no es un cuaderno.
 
 // ---------------------------------------------------------------- fuentes
 
@@ -81,6 +52,7 @@ const katexCss = inlineKatexCss();
 // ---------------------------------------------------------------- salida
 
 const app = readFileSync(join(HERE, 'app.js'), 'utf8');
+const katexJs = readFileSync(join(KATEX, 'katex.min.js'), 'utf8');
 const styles = readFileSync(join(HERE, 'styles.css'), 'utf8');
 
 // El charset va primero de todo: el navegador solo lo respeta si aparece
@@ -91,12 +63,13 @@ const html = `<meta charset="utf-8">
 <style>${styles}</style>
 <div id="app"></div>
 <script id="payloads" type="application/json">${
-  JSON.stringify(rendered).replace(/</g, '\\u003c')
+  JSON.stringify(cases).replace(/</g, '\\u003c')
 }</script>
+<script>${katexJs}</script>
 <script>${app}</script>
 `;
 
 const out = join(ROOT, 'tooling', 'demo', 'index.html');
 writeFileSync(out, html);
 console.log(`escrito ${out}`);
-console.log(`  ${(html.length / 1024 / 1024).toFixed(2)} MB · ${usedFonts.size} fuentes incrustadas · ${rendered.length} modelos`);
+console.log(`  ${(html.length / 1024 / 1024).toFixed(2)} MB · ${usedFonts.size} fuentes incrustadas · ${cases.length} modelos`);

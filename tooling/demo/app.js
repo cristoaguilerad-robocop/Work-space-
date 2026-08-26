@@ -161,7 +161,43 @@
     return node;
   };
 
-  const math = (packaged) => el('span', { html: packaged.html });
+  /** Rinde LaTeX en el momento. Con KaTeX en la pagina, el usuario puede
+   *  escribir y ver lo que escribe, no solo leer lo que vino hecho. */
+  function tex(latex, display = false) {
+    if (!latex) return '';
+    try {
+      return katex.renderToString(latex, { displayMode: display, throwOnError: false });
+    } catch {
+      return `<code class="katex-fallback">${latex}</code>`;
+    }
+  }
+
+  const math = (packaged, display = false) =>
+    el('span', { html: tex(typeof packaged === 'string' ? packaged : packaged.latex, display) });
+
+  /** Texto con matematica intercalada entre `$...$`. */
+  function mathText(text) {
+    const node = el('span', { class: 'mathtext' });
+    let buffer = '';
+    let inMath = false;
+    const flush = () => {
+      if (buffer === '') return;
+      if (inMath) node.insertAdjacentHTML('beforeend', tex(buffer));
+      else {
+        buffer.split('\n').forEach((line, i, all) => {
+          node.append(document.createTextNode(line));
+          if (i < all.length - 1) node.append(el('br'));
+        });
+      }
+      buffer = '';
+    };
+    for (let i = 0; i < text.length; i += 1) {
+      if (text[i] === '$' && text[i - 1] !== '\\') { flush(); inMath = !inMath; continue; }
+      buffer += text[i];
+    }
+    flush();
+    return node;
+  }
 
   function fmt(v) {
     if (!Number.isFinite(v)) return '—';
@@ -666,6 +702,230 @@
     return range;
   }
 
+  // ------------------------------------------------------------- cuaderno
+  //
+  // Lo unico de esta pagina que no es de solo lectura. No necesita backend: se
+  // escribe, se rinde con KaTeX y se guarda en el navegador. Es la parte que
+  // mas importa de la herramienta, asi que tiene que estar donde se pueda
+  // probar sin instalar nada.
+
+  const NOTES_KEY = 'wf:demo:notas';
+
+  function loadNotes() {
+    try { return JSON.parse(localStorage.getItem(NOTES_KEY) || '{}'); }
+    catch { return {}; }
+  }
+
+  function saveNotes(notes) {
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
+    catch { /* modo privado o cuota llena: se sigue trabajando en memoria */ }
+  }
+
+  let notes = loadNotes();
+
+  const stepsOf = (stage) => (notes[state.caseId] && notes[state.caseId][stage]) || [];
+
+  function setSteps(stage, steps) {
+    notes[state.caseId] = { ...(notes[state.caseId] || {}), [stage]: steps };
+    saveNotes(notes);
+  }
+
+  const MATH_GROUPS = [
+    { id: 'griegas', label: 'Griegas', keys: [
+      '\\alpha','\\beta','\\gamma','\\delta','\\epsilon','\\varepsilon','\\zeta','\\eta',
+      '\\theta','\\kappa','\\lambda','\\mu','\\nu','\\xi','\\rho','\\sigma','\\tau',
+      '\\phi','\\varphi','\\chi','\\psi','\\omega','\\Gamma','\\Delta','\\Theta',
+      '\\Lambda','\\Pi','\\Sigma','\\Phi','\\Omega',
+    ].map((latex) => ({ label: latex, latex })) },
+    { id: 'calculo', label: 'Calculo', keys: [
+      { label: '\\int', latex: '\\int ' },
+      { label: '\\int_{a}^{b}', latex: '\\int_{}^{} ', caret: 5 },
+      { label: '\\iint', latex: '\\iint ' },
+      { label: '\\oint', latex: '\\oint ' },
+      { label: 'dx', latex: '\\,dx' },
+      { label: '\\partial', latex: '\\partial ' },
+      { label: '\\frac{d}{dx}', latex: '\\frac{d}{dx} ' },
+      { label: '\\frac{\\partial}{\\partial x}', latex: '\\frac{\\partial }{\\partial x} ', caret: 14 },
+      { label: '\\lim_{x \\to a}', latex: '\\lim_{ \\to } ', caret: 6 },
+      { label: '\\sum', latex: '\\sum_{}^{} ', caret: 5 },
+      { label: '\\nabla', latex: '\\nabla ' },
+      { label: '\\infty', latex: '\\infty ' },
+    ] },
+    { id: 'estructura', label: 'Estructura', keys: [
+      { label: '\\frac{a}{b}', latex: '\\frac{}{}', caret: 3 },
+      { label: 'x^{n}', latex: '^{}', caret: 1 },
+      { label: 'x_{i}', latex: '_{}', caret: 1 },
+      { label: '\\sqrt{x}', latex: '\\sqrt{}', caret: 1 },
+      { label: '\\left(\\right)', latex: '\\left( \\right)', caret: 8 },
+      { label: '\\left[\\right]', latex: '\\left[ \\right]', caret: 8 },
+      { label: '\\left|x\\right|', latex: '\\left| \\right|', caret: 8 },
+      { label: '\\vec{F}', latex: '\\vec{}', caret: 1 },
+      { label: '\\hat{n}', latex: '\\hat{}', caret: 1 },
+      { label: '\\bar{x}', latex: '\\bar{}', caret: 1 },
+      { label: '\\begin{cases}\\end{cases}', latex: '\\begin{cases} \\\\ \\end{cases}', caret: 17 },
+    ] },
+    { id: 'relaciones', label: 'Relaciones', keys: [
+      '=','\\neq','\\approx','\\equiv','\\propto','<','>','\\leq','\\geq',
+      '\\pm','\\times','\\cdot','\\div','\\to','\\Rightarrow','\\therefore','\\in',
+    ].map((latex) => ({ label: latex, latex })) },
+    { id: 'fisica', label: 'Fisica', keys: [
+      { label: '\\sum F_x = 0', latex: '\\sum F_x = 0' },
+      { label: '\\sum F_y = 0', latex: '\\sum F_y = 0' },
+      { label: '\\sum M = 0', latex: '\\sum M_{} = 0', caret: 5 },
+      { label: '\\vec{F}', latex: '\\vec{F}' },
+      { label: '\\Delta T', latex: '\\Delta T' },
+      { label: '\\varepsilon_0', latex: '\\varepsilon_0' },
+      { label: '\\mu_0', latex: '\\mu_0' },
+      { label: '^\\circ', latex: '^\\circ' },
+      { label: '\\,\\mathrm{N}', latex: '\\,\\mathrm{N}' },
+      { label: '\\,\\mathrm{m}', latex: '\\,\\mathrm{m}' },
+      { label: '\\,\\mathrm{W}', latex: '\\,\\mathrm{W}' },
+      { label: '\\,\\mathrm{V}', latex: '\\,\\mathrm{V}' },
+    ] },
+  ];
+
+  /** Si la posicion cae dentro de un tramo `$...$`. */
+  function insideMath(text, position) {
+    let open = false;
+    for (let i = 0; i < position && i < text.length; i += 1) {
+      if (text[i] === '$' && text[i - 1] !== '\\') open = !open;
+    }
+    return open;
+  }
+
+  /**
+   * Cuaderno de una etapa.
+   *
+   * El DOM se construye una vez y despues se actualiza a mano. Volver a
+   * renderizar toda la pagina en cada tecla le sacaria el foco al textarea, que
+   * es exactamente donde la persona esta escribiendo.
+   */
+  function notebook(stage, title, hint, suggestions) {
+    let steps = stepsOf(stage);
+    let focused = null;
+    const areas = new Map();
+    const list = el('ol', { class: 'usersteps' });
+
+    const commit = () => setSteps(stage, steps);
+
+    function draw() {
+      list.replaceChildren();
+      steps.forEach((step, index) => {
+        const area = el('textarea', {
+          rows: 3,
+          placeholder: 'Escribi aca. La matematica va entre signos peso: $\\sum F_y = 0$',
+        });
+        area.value = step.body;
+        areas.set(step.id, area);
+
+        const preview = el('div', { class: 'step-preview' });
+        const refresh = () => preview.replaceChildren(
+          step.body.trim() ? mathText(step.body) : document.createTextNode(''),
+        );
+        refresh();
+
+        area.addEventListener('focus', () => { focused = step.id; });
+        area.addEventListener('input', () => { step.body = area.value; refresh(); commit(); });
+
+        const name = el('input', { class: 'step-title', placeholder: 'Que hago en este paso' });
+        name.value = step.title;
+        name.addEventListener('input', () => { step.title = name.value; commit(); });
+
+        const move = (delta) => {
+          const target = index + delta;
+          if (target < 0 || target >= steps.length) return;
+          [steps[index], steps[target]] = [steps[target], steps[index]];
+          commit(); draw();
+        };
+
+        list.append(el('li', {},
+          el('div', { class: 'step-bar' },
+            el('span', { class: 'step-n' }, index + 1),
+            name,
+            el('button', { type: 'button', 'aria-label': 'Subir', onclick: () => move(-1) }, '↑'),
+            el('button', { type: 'button', 'aria-label': 'Bajar', onclick: () => move(1) }, '↓'),
+            el('button', { type: 'button', 'aria-label': 'Quitar paso', onclick: () => {
+              steps = steps.filter((s) => s.id !== step.id); commit(); draw();
+            } }, '✕')),
+          area, preview));
+      });
+    }
+
+    const add = (body = '', stepTitle = '') => {
+      const step = {
+        id: Math.random().toString(36).slice(2, 10),
+        title: stepTitle, body, createdAt: new Date().toISOString(),
+      };
+      steps = [...steps, step];
+      commit(); draw();
+      requestAnimationFrame(() => areas.get(step.id)?.focus());
+    };
+
+    const insert = (key) => {
+      const id = focused ?? steps[steps.length - 1]?.id;
+      const area = areas.get(id);
+      const step = steps.find((s) => s.id === id);
+      if (!area || !step) return;
+      const start = area.selectionStart;
+      const end = area.selectionEnd;
+      const inside = insideMath(step.body, start);
+      const payload = inside ? key.latex : `$${key.latex}$`;
+      step.body = step.body.slice(0, start) + payload + step.body.slice(end);
+      const caret = start + payload.length - (key.caret ?? 0) - (inside ? 0 : 1);
+      commit(); draw();
+      requestAnimationFrame(() => {
+        const again = areas.get(step.id);
+        if (!again) return;
+        again.focus();
+        again.setSelectionRange(caret, caret);
+      });
+    };
+
+    let group = MATH_GROUPS[0].id;
+    const keyboard = el('div', { class: 'mathkeys' });
+    function drawKeys() {
+      const active = MATH_GROUPS.find((g) => g.id === group) ?? MATH_GROUPS[0];
+      keyboard.replaceChildren(
+        el('div', { class: 'mathkeys-tabs' }, MATH_GROUPS.map((entry) => el('button', {
+          type: 'button', 'aria-pressed': entry.id === group,
+          onclick: () => { group = entry.id; drawKeys(); },
+        }, entry.label))),
+        el('div', { class: 'mathkeys-grid' }, active.keys.map((key) => {
+          const button = el('button', { type: 'button', title: key.latex });
+          const isLatex = /[\\{^_]/.test(key.label);
+          if (isLatex) button.innerHTML = tex(key.label);
+          else button.textContent = key.label;
+          // onmousedown y no onclick: al hacer click el textarea ya perdio el
+          // foco y con el la posicion del cursor, que es donde hay que insertar.
+          button.addEventListener('mousedown', (event) => { event.preventDefault(); insert(key); });
+          return button;
+        })),
+      );
+    }
+    drawKeys();
+
+    draw();
+
+    return el('section', { class: 'plate notebook' },
+      el('div', { class: 'panel-head' },
+        el('h2', {}, title),
+        el('button', { type: 'button', onclick: () => add() }, '+ Paso')),
+      el('p', { class: 'hint' }, hint),
+      list,
+      keyboard,
+      suggestions.length
+        ? el('details', { class: 'suggestions' },
+            el('summary', {}, `Traer algo de lo que dedujo el motor (${suggestions.length})`),
+            el('p', { class: 'hint' },
+              'Se agrega como paso nuevo, para que puedas editarlo y decir con tus ' +
+              'palabras por que lo usaste.'),
+            el('div', { class: 'cases' }, suggestions.map((suggestion) => el('button', {
+              type: 'button',
+              onclick: () => add(`$${suggestion.latex}$`, suggestion.label),
+            }, suggestion.label))))
+        : null);
+  }
+
   // -------------------------------------------------------------- etapas
 
   const STAGES = [
@@ -821,7 +1081,16 @@
 
   function stage2() {
     const b = body();
+    const suggestions = b.equations
+      .filter((e) => ['equilibrium', 'result', 'field'].includes(e.role))
+      .map((e) => ({ label: e.title, latex: e.latex }));
+
     return el('div', { class: 'sheet' },
+      notebook('stage2', 'Mi planteo',
+        'Escribi como encaras el ejercicio: que ecuaciones planteas y por que. La ' +
+        'matematica va entre signos peso y el teclado de abajo la inserta. Se guarda ' +
+        'en este navegador.',
+        suggestions),
       ...(b.notes?.length ? [el('div', { class: 'demo-note' },
         el('b', {}, 'Nota'), el('span', {}, b.notes.join(' ')))] : []),
       ...ROLES.map(([role, title]) => {
@@ -831,7 +1100,7 @@
           el('h2', {}, title),
           ...group.map((eq) => el('article', { class: 'eq' },
             el('div', { class: 'eq-head' }, el('b', {}, eq.title), el('code', {}, eq.id)),
-            el('div', { class: 'eq-body' }, math(eq.latex)),
+            el('div', { class: 'eq-body' }, math(eq.latex, true)),
             eq.detail ? el('p', {}, eq.detail) : null)),
           el('span', { class: 'plate-code' }, 'ETAPA 2'));
       }),
@@ -841,7 +1110,7 @@
           el('span', { class: 'step-mark', 'aria-hidden': 'true' }, KIND_MARK[step.kind] || '·'),
           el('div', {},
             el('b', {}, step.title),
-            step.latex.src ? el('div', { class: 'eq-body' }, math(step.latex)) : null,
+            step.latex ? el('div', { class: 'eq-body' }, math(step.latex, true)) : null,
             step.detail ? el('p', {}, step.detail) : null)))),
         el('span', { class: 'plate-code' }, 'ETAPA 2 / TRAZA')));
   }
@@ -996,7 +1265,17 @@
               el('div', { 'data-plot': key }, drawPlot(b.functions[key], color, L, breaks)))),
           el('span', { class: 'plate-code' }, 'ETAPA 3 / DIAGRAMAS'));
 
-    return el('div', { class: 'sheet cols-values' },
+    const suggestions = [
+      ...Object.entries(b.reactions).map(([k, p]) => ({ label: k, latex: p.latex })),
+      ...Object.entries(b.scalars).map(([k, p]) =>
+        ({ label: SCALAR_LABELS[k] || k, latex: p.latex })),
+    ];
+
+    return el('div', { class: 'sheet' },
+      notebook('stage3', 'Mi desarrollo',
+        'Anota el reemplazo de valores y el resultado al que llegas, con tus unidades ' +
+        'y tus cuentas.', suggestions),
+      el('div', { class: 'sheet cols-values' },
       el('div', { class: 'stack' },
         el('section', { class: 'plate' },
           el('h2', {}, 'Valores'),
@@ -1016,7 +1295,7 @@
               el('td', { class: 'expr' }, math(row.packaged.latex)),
               el('td', { class: 'num', 'data-num': row.key }, fmt(val(row.packaged, bd))))))),
           el('span', { class: 'plate-code' }, 'ETAPA 3 / SALIDAS')) : null,
-        output));
+        output)));
   }
 
   // -------------------------------------------------------------- montaje
