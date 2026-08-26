@@ -29,27 +29,49 @@ const pick = (ext) => {
 const js = pick('.js');
 
 /**
- * Deja una sola variante por fuente.
+ * Familias de KaTeX que la pagina no usa.
  *
- * Vite incrusta las tres que declara KaTeX (woff2, woff y ttf) y el navegador
- * usa una: las otras dos son medio megabyte de peso muerto.
+ * Son las de alfabetos decorativos: `\\mathfrak`, `\\mathscr`, `\\texttt`,
+ * `\\mathsf`. Nada de lo que escribe el motor las pide, y en un ejercicio de
+ * fisica no aparecen. Si alguien las escribe igual, el texto se ve con la letra
+ * del sistema en vez de no verse. Cuestan cien kilobytes que aca importan: la
+ * pagina entra en un archivo y ese archivo tiene un tope.
+ */
+const DROPPED = ['KaTeX_Fraktur', 'KaTeX_Script', 'KaTeX_Typewriter', 'KaTeX_SansSerif'];
+
+/**
+ * Deja una sola variante por fuente y tira las familias que no se usan.
+ *
+ * Vite incrusta las tres variantes que declara KaTeX (woff2, woff y ttf) y el
+ * navegador usa una: las otras dos son medio megabyte de peso muerto.
  */
 function trimFonts(css) {
   let kept = 0;
+  const dropped = new Set();
+
   // Se corta por la estructura y no por el `;`: un data URI lleva uno adentro
   // (`data:font/woff2;base64,...`) y cualquier regex que pare ahi se come el
   // bloque a la mitad. Un base64 no contiene `)`, asi que `url(...)` cierra bien.
   const SRC = /src:\s*(?:url\([^)]*\)(?:\s*format\([^)]*\))?\s*,?\s*)+/g;
-  const out = css.replace(SRC, (block) => {
-    const woff2 = block.match(/url\((data:font\/woff2;base64,[^)]+)\)/);
-    if (!woff2) return block;
-    kept += 1;
-    return `src:url(${woff2[1]}) format("woff2")`;
+
+  const out = css.replace(/@font-face\s*\{[^}]*\}/g, (block) => {
+    const family = block.match(/font-family:\s*["']?(KaTeX_[A-Za-z]+)/);
+    if (family && DROPPED.includes(family[1])) {
+      dropped.add(family[1]);
+      return '';
+    }
+    return block.replace(SRC, (src) => {
+      const woff2 = src.match(/url\((data:font\/woff2;base64,[^)]+)\)/);
+      if (!woff2) return src;
+      kept += 1;
+      return `src:url(${woff2[1]}) format("woff2")`;
+    });
   });
-  return { css: out, kept };
+
+  return { css: out, kept, dropped: [...dropped] };
 }
 
-const { css, kept } = trimFonts(pick('.css'));
+const { css, kept, dropped } = trimFonts(pick('.css'));
 const bundle = readFileSync(join(HERE, 'bundle.json'), 'utf8');
 
 // El charset primero: el navegador solo lo respeta dentro de los primeros
@@ -67,3 +89,4 @@ writeFileSync(out, html);
 console.log(`escrito ${out}`);
 console.log(`  ${(html.length / 1024 / 1024).toFixed(2)} MB · ${kept} fuentes · `
   + `${(bundle.length / 1024).toFixed(0)} KB de ejemplos derivados`);
+console.log(`  sin ${dropped.join(', ') || 'ninguna familia descartada'}`);
