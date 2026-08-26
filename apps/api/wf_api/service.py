@@ -9,7 +9,7 @@ from __future__ import annotations
 import sympy as sp
 
 from wf_core.canonical import assemble, local_frame
-from wf_core.jsprint import compile_function, to_ast
+from wf_core.jsprint import compile_function
 from wf_core.model import (
     FullRegion, IntervalRegion, MechanicalLoad, PointRegion, ProblemModel,
     ScalarSource, ThermalField,
@@ -31,19 +31,10 @@ def _packaged(expr: sp.Expr, variable: sp.Symbol, *, emit_ast: bool = False) -> 
     no se puede compilar codigo (una pagina con CSP estricta), asi que no viaja
     por defecto: duplicaria el peso de cada respuesta sin que nadie lo use.
     """
-    out = {
+    return {
         "latex": sp.latex(expr),
-        "js": compile_function(expr, variable),
+        "js": compile_function(expr, variable, emit_ast=emit_ast),
     }
-    if emit_ast:
-        try:
-            out["ast"] = to_ast(expr)
-        except TypeError:
-            # Una expresion que el AST no representa no es un error fatal: el
-            # cliente que necesita el arbol solo evalua integrandos, y una
-            # forma cerrada exotica ahi solo se muestra escrita.
-            out["ast"] = None
-    return out
 
 
 def _load_descriptors(body, *, emit_ast: bool = False) -> list[dict]:

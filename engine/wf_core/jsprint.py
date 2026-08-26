@@ -41,21 +41,36 @@ def to_js(expr: sp.Expr) -> str:
     return _Printer({"precision": 17, "user_functions": {}}).doprint(sp.sympify(expr))
 
 
-def compile_function(expr: sp.Expr, variable: sp.Symbol) -> dict:
+def compile_function(
+    expr: sp.Expr, variable: sp.Symbol, *, emit_ast: bool = False
+) -> dict:
     """Empaqueta ``expr`` como funcion JS de ``variable`` mas sus parametros.
 
     ``params`` son los simbolos que la etapa 3 tiene que valorizar; el cliente
     los pasa en el mismo orden.
+
+    ``emit_ast`` agrega el arbol serializado al lado del codigo. El arbol
+    pesa mas que la fuente, asi que no viaja por defecto; hace falta cuando la
+    pagina corre con una CSP que prohibe compilar codigo.
     """
     expr = sp.sympify(expr)
     params = sorted(
         (s.name for s in expr.free_symbols if s != variable), key=str.lower
     )
-    return {
+    out = {
         "variable": variable.name,
         "params": params,
         "source": to_js(expr),
     }
+    if emit_ast:
+        try:
+            out["ast"] = to_ast(expr)
+        except TypeError:
+            # Una forma cerrada que el arbol no representa no es fatal: el
+            # cliente que lo necesita cae de vuelta al codigo, y si tampoco
+            # puede compilar, la expresion se muestra escrita y no graficada.
+            out["ast"] = None
+    return out
 
 
 # --------------------------------------------------------------------------

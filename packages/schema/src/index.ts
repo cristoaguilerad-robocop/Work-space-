@@ -15,11 +15,29 @@ export interface Packaged {
   js: CompiledFunction;
 }
 
+/**
+ * Nodo de una expresion serializada.
+ *
+ * Un numero es una hoja; `{v}` es un simbolo; `{f, a}` es una aplicacion.
+ * Es la misma expresion que `source`, pero recorrible sin compilar codigo.
+ */
+export type ExprNode =
+  | number
+  | null
+  | { v: string }
+  | { f: string; a: ExprNode[] };
+
 /** Funcion compilada a JS, evaluable en el navegador sin tocar la red. */
 export interface CompiledFunction {
   variable: string;
   params: string[];
   source: string;
+  /**
+   * Arbol serializado, cuando el motor lo emite. Existe para las paginas que
+   * corren con una CSP que prohibe `new Function`: ahi se evalua recorriendo
+   * el arbol. Cuesta mas por muestra, asi que solo se pide donde hace falta.
+   */
+  ast?: ExprNode;
 }
 
 export interface DerivedStep {

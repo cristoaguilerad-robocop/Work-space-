@@ -87,7 +87,10 @@ export function App() {
             ))}
           </select>
           <span className={`pill ${status}`}>
-            {status === 'deriving' ? 'calculando...' : status === 'error' ? 'sin resolver' : 'guardado'}
+            {status === 'deriving' ? 'calculando...'
+              : status === 'error' ? 'sin resolver'
+              : status === 'noengine' ? 'sin motor'
+              : 'guardado'}
           </span>
         </div>
       </header>
@@ -105,6 +108,14 @@ export function App() {
       )}
 
       {error && <div className="banner error">Error del motor: {error}</div>}
+
+      {status === 'noengine' && (
+        <div className="banner">
+          Esta copia no trae motor de calculo: los ejemplos vienen resueltos, pero
+          lo que armes vos no se resuelve solo. Podes construir, mover, mirar en 3D
+          y escribir tu procedimiento igual — se guarda todo.
+        </div>
+      )}
 
       <main>
         {stage === 1 && (

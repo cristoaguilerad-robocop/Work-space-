@@ -49,7 +49,7 @@
   }
 
   const compile = (packaged) => (x, b) => {
-    const out = evaluate(packaged.ast, x, b);
+    const out = evaluate(packaged.js.ast, x, b);
     return Number.isFinite(out) ? out : NaN;
   };
 
@@ -71,13 +71,13 @@
   /** Campo en un punto: aporte exacto de las cargas puntuales mas cuadratura. */
   function fieldAt(setup, bindings, observer, steps) {
     const scope = Object.assign({}, bindings, observer);
-    let total = evaluate(setup.discrete.ast, 0, scope);
+    let total = evaluate(setup.discrete.js.ast, 0, scope);
     if (!Number.isFinite(total)) total = 0;
     for (const part of setup.parts) {
-      const start = evaluate(part.start.ast, 0, scope);
-      const end = evaluate(part.end.ast, 0, scope);
+      const start = evaluate(part.start.js.ast, 0, scope);
+      const end = evaluate(part.end.js.ast, 0, scope);
       const contribution = simpson(
-        (x) => evaluate(part.integrand.ast, x, scope), start, end, steps,
+        (x) => evaluate(part.integrand.js.ast, x, scope), start, end, steps,
       );
       if (Number.isFinite(contribution)) total += contribution;
     }
@@ -245,15 +245,15 @@
     let peak = 0;
     for (const load of dist) {
       for (let i = 0; i <= 60; i += 1) {
-        peak = Math.max(peak, Math.abs(evaluate(load.profile.ast, (i / 60) * L, bd)));
+        peak = Math.max(peak, Math.abs(evaluate(load.profile.js.ast, (i / 60) * L, bd)));
       }
     }
     const scale = peak > 0 ? LOAD_PX / peak : 0;
 
     for (const load of dist) {
       const a = val(load.start, bd), z = val(load.end, bd);
-      const h = (x) => Math.abs(evaluate(load.profile.ast, x, bd)) * scale;
-      const down = evaluate(load.profile.ast, (a + z) / 2, bd) <= 0;
+      const h = (x) => Math.abs(evaluate(load.profile.js.ast, x, bd)) * scale;
+      const down = evaluate(load.profile.js.ast, (a + z) / 2, bd) <= 0;
 
       const pts = [];
       for (let i = 0; i <= 80; i += 1) {
@@ -384,7 +384,7 @@
       const samples = [];
       for (let i = 0; i <= 80; i += 1) {
         const sx = (i / 80) * L;
-        const sy = evaluate(b.shape.ast, sx, bd);
+        const sy = evaluate(b.shape.js.ast, sx, bd);
         if (Number.isFinite(sy)) samples.push({ x: sx, y: sy });
       }
       if (samples.length > 1) {
@@ -481,7 +481,7 @@
     }
 
     const xs = [...grid].sort((a, b) => a - b);
-    const ys = xs.map((x) => evaluate(packaged.ast, x, bd));
+    const ys = xs.map((x) => evaluate(packaged.js.ast, x, bd));
     const finite = ys.filter(Number.isFinite);
     const lo = finite.length ? Math.min(...finite) : 0;
     const hi = finite.length ? Math.max(...finite) : 0;
