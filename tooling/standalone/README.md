@@ -1,6 +1,6 @@
 # La app, en un archivo
 
-`index.html` es la aplicacion entera —el canvas donde se pone y se saca, el 3D,
+`docs/index.html` (en la raiz del repo) es la aplicacion entera —el canvas donde se pone y se saca, el 3D,
 el cuaderno y el teclado— empaquetada en un solo archivo que se abre sin
 servidor. No es la demo: la demo (`tooling/demo`) es un catalogo de casos ya
 resueltos, para leer; esto es para trabajar.
@@ -19,8 +19,13 @@ Para tener el motor hay que correr la app de verdad (`pnpm dev` + `uvicorn`).
 ```sh
 ../../.venv/bin/python build_bundle.py   # deriva los ejemplos -> bundle.json
 cd ../../apps/web && npx vite build      # compila la app
-cd - && node pack.mjs                    # todo junto -> index.html
+cd - && node pack.mjs                    # todo junto -> ../../docs/index.html
 ```
+
+Sale a `docs/` porque es una de las dos carpetas que GitHub Pages sabe publicar
+(la otra es la raiz). El mismo archivo que se abre a mano es el que tiene URL:
+sin un paso de copia que alguien se olvide de hacer.
+
 
 `build_bundle.py` indexa cada derivacion por la identidad fisica del modelo,
 con la misma clave que calcula el cliente (`apps/web/src/lib/physicskey.ts`).

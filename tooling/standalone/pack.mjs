@@ -11,7 +11,7 @@
  * como data URI y que las funciones del motor viajen tambien como arbol.
  */
 
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -84,8 +84,14 @@ const html = `<meta charset="utf-8">
 <script type="module">${js}</script>
 `;
 
-const out = join(HERE, 'index.html');
+// Sale a `docs/` porque es una de las dos carpetas que GitHub Pages sabe
+// publicar (la otra es la raiz del repo). Asi la misma pagina que se abre como
+// archivo tiene tambien una URL, sin un paso de copia que alguien se olvide.
+const out = join(ROOT, 'docs', 'index.html');
+mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, html);
+// Sin esto Pages pasa el sitio por Jekyll, que ignora lo que empieza con "_".
+writeFileSync(join(ROOT, 'docs', '.nojekyll'), '');
 console.log(`escrito ${out}`);
 console.log(`  ${(html.length / 1024 / 1024).toFixed(2)} MB · ${kept} fuentes · `
   + `${(bundle.length / 1024).toFixed(0)} KB de ejemplos derivados`);
